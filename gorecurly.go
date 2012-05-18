@@ -1,4 +1,8 @@
+//Main GoRecurly Package
 package gorecurly
+
+//TODO: Change debug msgs to logging messages
+//TODO: Do all account tests
 
 import (
 	"net/http"
@@ -6,6 +10,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"fmt"
+	"strings"
 	"encoding/xml"
 	"net/url"
 )
@@ -14,13 +19,16 @@ const (
 	URL = "https://api.recurly.com/v2/"
 	libversion = "0.1"
 	libname = "Recurly-Go"
+	ACCOUNTS = "accounts"
 
 )
+//Generic Reader
 type nopCloser struct {
 	io.Reader
 }
 //functions
 
+//Initialize the Recurly package with your apikey and your jskey
 func InitRecurly(apikey string,jskey string) (*Recurly){
 	r := new (Recurly)
 	r.apiKey = apikey
@@ -29,13 +37,14 @@ func InitRecurly(apikey string,jskey string) (*Recurly){
 }
 
 //interfaces
+
+
+//Paging interface to allow Next,Prev,Start
 type Pager interface {
-	Next() (*Pager,error)
-	//SetData([]byte) 
 	getRawBody() []byte
 }
 
-//Recurly Errors
+//Recurly Generic Errors
 type RecurlyError struct {
 	XMLName xml.Name `xml:"error"`
 	statusCode int
@@ -44,12 +53,14 @@ type RecurlyError struct {
 	Details string `xml:"details"`
 }
 
+//Recurly Validation Errors Array
 type RecurlyValidationErrors struct {
 	XMLName xml.Name `xml:"errors"`
 	statusCode int
 	Errors []RecurlyValidationError `xml:"error"`
 }
 
+//Recurly validation error
 type RecurlyValidationError struct {
 	XMLName xml.Name `xml:"error"`
 	FieldName string `xml:"field,attr"`
@@ -57,6 +68,7 @@ type RecurlyValidationError struct {
 	Description string `xml:",innerxml"`
 }
 
+//Parse Recurly XML to create a Recurly Error
 func CreateRecurlyStandardError(resp *http.Response) (r RecurlyError) {
 	r.statusCode = resp.StatusCode
 	if xmlstring, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
@@ -67,6 +79,7 @@ func CreateRecurlyStandardError(resp *http.Response) (r RecurlyError) {
 	return r
 }
 
+//Parse Recurly XML to create a Validation Error
 func CreateRecurlyValidationError(resp *http.Response) (r RecurlyValidationErrors) {
 	r.statusCode = resp.StatusCode
 	if xmlstring, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
@@ -79,6 +92,7 @@ func CreateRecurlyValidationError(resp *http.Response) (r RecurlyValidationError
 	return r
 }
 
+//Filter to decide which error type to create
 func createRecurlyError(resp *http.Response) ( error) {
 	if resp.StatusCode != 422 {
 		return CreateRecurlyStandardError(resp)
@@ -88,10 +102,12 @@ func createRecurlyError(resp *http.Response) ( error) {
 	return nil
 }
 
+//Formatted General Error 
 func (r RecurlyError) Error() string {
 	return fmt.Sprintf("Recurly Error: %s , %s %s Status Code: %v", r.Symbol,r.Description, r.Details,r.statusCode)
 }
 
+//Formatted Validation Error
 func (r RecurlyValidationErrors) Error() string {
 	var rtnString string
 	for _,v := range r.Errors {
@@ -106,22 +122,26 @@ type Recurly struct {
 	debug bool
 }
 
+//Set verbose debugging
 func (r *Recurly) EnableDebug() {
 	r.debug = true
 }
 
+//Get a list of accounts
 func (r *Recurly) GetAccounts(params ...url.Values) (AccountList, error){
+	accountlist := AccountList{}
 	sendvars := url.Values{}
 	if params != nil {
 		sendvars = params[0] 
+		accountlist.perPage = sendvars.Get("per_page")
 	} 
-	accountlist := AccountList{}
-	if err := accountlist.initList("accounts",sendvars,r); err == nil {
+	if err := accountlist.initList(ACCOUNTS,sendvars,r); err == nil {
 		if xmlerr := xml.Unmarshal(accountlist.getRawBody(), &accountlist); xmlerr == nil {
 			for k,_ := range accountlist.Account {
 				accountlist.Account[k].r = r
-				accountlist.Account[k].endpoint = "accounts"
+				accountlist.Account[k].endpoint = ACCOUNTS
 			}
+			accountlist.r = r
 			return accountlist, nil
 		} else {
 			if r.debug {
@@ -135,9 +155,10 @@ func (r *Recurly) GetAccounts(params ...url.Values) (AccountList, error){
 	return accountlist, nil
 }
 
+//Get a single account by key
 func (r *Recurly) GetAccount(account_code string) (account Account, err error) {
 	account = r.NewAccount()
-	if resp,err := r.createRequest("accounts/" + account_code,"GET", nil, nil); err == nil {
+	if resp,err := r.createRequest(ACCOUNTS + "/" + account_code,"GET", nil, nil); err == nil {
 		if resp.StatusCode == 200 {
 			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
 				if r.debug {
@@ -168,12 +189,14 @@ func (r *Recurly) GetAccount(account_code string) (account Account, err error) {
 	return account, nil
 }
 
+//Create a new Account
 func (r *Recurly) NewAccount() (account Account) {
 	account.r = r
-	account.endpoint = "accounts"
+	account.endpoint = ACCOUNTS
 	return
 }
 
+//Create a request to Recurly and return that response object
 func (r *Recurly) createRequest(endpoint string, method string, params url.Values, msgbody []byte) (*http.Response, error) { 
 	client := &http.Client{}
 
@@ -183,6 +206,9 @@ func (r *Recurly) createRequest(endpoint string, method string, params url.Value
 	}
 	u.RawQuery = params.Encode()
 	body := nopCloser{bytes.NewBufferString(string(msgbody))}
+	if r.debug {
+		fmt.Printf("Endpoint Requested: %s Method: %s Body: %s\n", u.String(), method, string(msgbody))
+	}
 	if req, err := http.NewRequest(method, u.String(), body); err != nil {
 		return nil,err
 	} else {
@@ -201,6 +227,7 @@ func (r *Recurly) createRequest(endpoint string, method string, params url.Value
 	return nil, nil
 }
 
+//Create a resource from struct, uses POST method
 func (r *Recurly) doCreate(v interface{}, endpoint string) (error) {
 	if xmlstring, err := xml.MarshalIndent(v, "", "    "); err == nil {
 		xmlstring = []byte(xml.Header + string(xmlstring))
@@ -241,6 +268,7 @@ func (r *Recurly) doCreate(v interface{}, endpoint string) (error) {
 	return nil
 }
 
+//Update a resource from Struct, uses PUT method
 func (r *Recurly) doUpdate(v interface{}, endpoint string) (error) {
 	if xmlstring, err := xml.MarshalIndent(v, "", "    "); err == nil {
 		xmlstring = []byte(xml.Header + string(xmlstring))
@@ -262,6 +290,7 @@ func (r *Recurly) doUpdate(v interface{}, endpoint string) (error) {
 	return nil
 }
 
+//Delete a resource, uses DELETE method
 func (r *Recurly) doDelete(endpoint string) (error) {
 	if resp, reqerr := r.createRequest(endpoint, "DELETE", nil, nil); reqerr == nil {
 		if resp.StatusCode < 400 {
@@ -274,26 +303,44 @@ func (r *Recurly) doDelete(endpoint string) (error) {
 	}
 	return nil
 }
+
 /* paging struct */
 
+//A struct to assist in paging result sets
 type Paging struct {
 	rawBody []byte
-	count, next, prev, start string
+	count, next, prev, perPage string
 }
 
+//Return the rawBody Var
 func (p Paging) getRawBody() ([]byte) {
 	return p.rawBody
 }
-func (p *Paging) SetData(rb []byte, count string, link string) {
+
+//Set header data for paging
+func (p *Paging) SetData(rb []byte, count string, links string) {
 	p.rawBody = rb
 	p.count = count
-	println(link)
-	println(count)
-	p.next = link
-	p.prev = link
-	p.start = link
+	p.next = ""
+	p.prev = ""
+	for _,v := range strings.SplitN(links,",",-1) {
+		println(v)
+		link := strings.SplitN(v,";",-1)
+		link[0] = strings.Replace(link[0],"<","",-1)
+		link[0] = strings.Replace(link[0],">","",-1)
+		if u, err := url.Parse(link[0]); err == nil {
+			values := u.Query() 
+			switch link[1] {
+			case " rel=\"next\"" :
+				p.next = values.Get("cursor")
+			case " rel=\"prev\"" :
+				p.prev = values.Get("cursor")
+			}
+		} 
+	}
 }
 
+//Initialize the paging list values
 func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) ( error) { 
 	if resp, err := r.createRequest(endpoint,"GET",params, make([]byte,0)); err == nil {
 		defer resp.Body.Close()
@@ -322,35 +369,80 @@ func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) ( erro
 
 /*resource objects */
 
+//Billing Info struct
 type BillingInfo struct {
 	XMLName xml.Name `xml:"billing_info"`
 	endpoint string
 	r *Recurly
 	FirstName string `xml:"first_name,omitempty"`
 	LastName string `xml:"last_name,omitempty"`
+	Address1 string `xml:"address1,omitempty"`
+	Address2 string `xml:"address2,omitempty"`
+	City string `xml:"city,omitempty"`
+	State string `xml:"state,omitempty"`
+	Zip string `xml:"zip,omitempty"`
+	Country string `xml:"country,omitempty"`
+	Phone string `xml:"phone,omitempty"`
+	VatNumber string `xml:"vat_number,omitempty"`
+	IPAddress string `xml:"ip_address,omitempty"`
+	IPAddressCountry string `xml:"ip_address_country,omitempty"`
+	Number string `xml:"number,omitempty"`
+	FirstSix string `xml:"first_six,omitempty"`
+	LastFour string `xml:"last_four,omitempty"`
+	VerificationValue string `xml:"verification_value,omitempty"`
+	CardType string `xml:"card_type,omitempty"`
+	Month string `xml:"month,omitempty"`
+	Year string `xml:"year,omitempty"`
+	BillingAgreementID string `xml:"billing_agreement_id,omitempty"`
 }
 
+//Account pager
 type AccountList struct {
 	Paging
+	r *Recurly
 	XMLName xml.Name `xml:"accounts"`
 	Account []Account `xml:"account"`
 }
 
-func (a AccountList) Next() (*Pager, error) {
-	accountlist := new(Pager)
-	return accountlist,nil
+//Get next set of accounts
+func (a *AccountList) Next() (bool) {
+	if a.next != "" {
+		v := url.Values{}
+		v.Set("cursor",a.next)
+		v.Set("per_page",a.perPage)
+		*a,_ = a.r.GetAccounts(v)
+	} else {
+		return false
+	}
+	return true
 }
 
-func (a AccountList) Prev() (AccountList, error) {
-	accountlist := AccountList{}
-	return accountlist,nil
+//Get previous set of accounts
+func (a *AccountList) Prev() ( bool) {
+	if a.prev != "" {
+		v := url.Values{}
+		v.Set("cursor",a.prev)
+		v.Set("per_page",a.perPage)
+		*a,_ = a.r.GetAccounts(v)
+	} else {
+		return false
+	}
+	return true
 }
 
-func (a AccountList) Start() (AccountList, error) {
-	accountlist := AccountList{}
-	return accountlist,nil
+//Go to start set of accounts
+func (a *AccountList) Start() ( bool) {
+	if a.prev != "" {
+		v := url.Values{}
+		v.Set("per_page",a.perPage)
+		*a,_ = a.r.GetAccounts(v)
+	} else {
+		return false
+	}
+	return true
 }
 
+//Account struct
 type Account struct{
 	XMLName xml.Name `xml:"account"`
 	endpoint string
@@ -368,13 +460,19 @@ type Account struct{
 	B *BillingInfo `xml:"billing_info,omitempty"` 
 }
 
+//Create a new account and load updated fields
 func (a *Account) Create() (error) {
 	if a.CreatedAt != "" || a.HostedLoginToken != "" || a.State != "" {
 		return RecurlyError{statusCode:400,Description:"Account Code Already in Use"}
 	}
-	return a.r.doCreate(&a,a.endpoint)
+	err := a.r.doCreate(&a,a.endpoint)
+	if err == nil {
+		a.B = nil
+	}
+	return err
 }
 
+//Update an account 
 func (a *Account) Update() (error) {
 	newaccount := new(Account)
 	*newaccount = *a
@@ -385,10 +483,12 @@ func (a *Account) Update() (error) {
 	return a.r.doUpdate(newaccount,a.endpoint + "/" + a.AccountCode)
 }
 
+//Close an account
 func (a *Account) Close() (error) {
 	return a.r.doDelete(a.endpoint + "/" + a.AccountCode)
 }
 
+//Reopen a closed account
 func (a *Account) Reopen() (error) {
 	newaccount := new(Account)
 	return a.r.doUpdate(newaccount,a.endpoint + "/" + a.AccountCode + "/reopen")
