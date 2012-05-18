@@ -1,7 +1,6 @@
 //Main GoRecurly Package
 package gorecurly
 
-//TODO: Change debug msgs to logging messages
 //TODO: Do all account tests
 
 import (
