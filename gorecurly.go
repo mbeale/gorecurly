@@ -1,7 +1,7 @@
 //Main GoRecurly Package
 package gorecurly
 
-//TODO: Do all account tests
+//TODO: Do all billing_info tests
 
 import (
 	"net/http"
@@ -19,6 +19,7 @@ const (
 	libversion = "0.1"
 	libname = "Recurly-Go"
 	ACCOUNTS = "accounts"
+	BILLINGINFO = "billing_info"
 
 )
 //Generic Reader
@@ -195,6 +196,47 @@ func (r *Recurly) NewAccount() (account Account) {
 	return
 }
 
+//Create new Billing Info
+func (r *Recurly) NewBillingInfo() (bi BillingInfo) {
+	bi.r = r
+	bi.endpoint = BILLINGINFO
+	return
+}
+
+//Get a single accounts billing info by key
+func (r *Recurly) GetBillingInfo(account_code string) (bi BillingInfo, err error) {
+	bi = r.NewBillingInfo()
+	if resp,err := r.createRequest(ACCOUNTS + "/" + account_code + "/" + BILLINGINFO,"GET", nil, nil); err == nil {
+		if resp.StatusCode == 200 {
+			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
+				if r.debug {
+					println(resp.Status)	
+					for k, _ := range resp.Header {
+						println(k + ":" + resp.Header[k][0])
+					}
+					fmt.Printf("%s\n", body) 
+					fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
+				}
+				//load object xml
+				if xmlerr := xml.Unmarshal(body, &bi); xmlerr != nil {
+					return bi,xmlerr
+				}
+				//everything went fine
+				bi.AccountCode = account_code
+				return  bi,nil
+			} else {
+				//return read error
+				return bi,readerr
+			}
+			return bi,nil
+		} else {
+			return bi,createRecurlyError(resp)
+		}
+	} else {
+		return bi, err
+	}
+	return bi, nil
+}
 //Create a request to Recurly and return that response object
 func (r *Recurly) createRequest(endpoint string, method string, params url.Values, msgbody []byte) (*http.Response, error) { 
 	client := &http.Client{}
@@ -373,6 +415,7 @@ type BillingInfo struct {
 	XMLName xml.Name `xml:"billing_info"`
 	endpoint string
 	r *Recurly
+	AccountCode string `xml:"account_code,omitempty"`
 	FirstName string `xml:"first_name,omitempty"`
 	LastName string `xml:"last_name,omitempty"`
 	Address1 string `xml:"address1,omitempty"`
@@ -394,6 +437,23 @@ type BillingInfo struct {
 	Year string `xml:"year,omitempty"`
 	BillingAgreementID string `xml:"billing_agreement_id,omitempty"`
 }
+
+//Update an billing info 
+func (b *BillingInfo) Update() (error) {
+	newbilling := new(BillingInfo)
+	*newbilling = *b
+	newbilling.AccountCode = ""
+	newbilling.FirstSix = ""
+	newbilling.LastFour = ""
+	newbilling.CardType = ""
+	return b.r.doUpdate(newbilling,ACCOUNTS + "/" + b.AccountCode + "/" + BILLINGINFO)
+}
+
+//Delete billing info for an account
+func (b *BillingInfo) Delete() (error) {
+	return b.r.doDelete(ACCOUNTS + "/" + b.AccountCode + "/" + BILLINGINFO)
+}
+
 
 //Account pager
 type AccountList struct {
