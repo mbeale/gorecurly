@@ -2,10 +2,12 @@
 package gorecurly
 
 //TODO: Do all billing_info tests
+//TODO: Introduce stubs for all resources
 
 import (
 	"net/http"
 	"io"
+	"errors"
 	"bytes"
 	"io/ioutil"
 	"fmt"
@@ -19,7 +21,15 @@ const (
 	libversion = "0.1"
 	libname = "Recurly-Go"
 	ACCOUNTS = "accounts"
+	ADJUSTMENTS = "adjustments"
 	BILLINGINFO = "billing_info"
+	COUPONS = "coupons"
+	COUPONREDEMPTIONS = "redemption"
+	INVOICES = "invoices"
+	PLANS = "plans"
+	PLANADDONS = "add_ons"
+	SUBSCRIPTIONS = "subscriptions"
+	TRANSACTIONS = "transactions"
 
 )
 //Generic Reader
@@ -43,6 +53,17 @@ func InitRecurly(apikey string,jskey string) (*Recurly){
 type Pager interface {
 	getRawBody() []byte
 }
+
+//recurly errors
+var Error400 = errors.New("The request was invalid or could not be understood by the server. Resubmitting the request will likely result in the same error.")
+var Error401 = errors.New("Your API key is missing or invalid.")
+var Error402 = errors.New("Your Recurly account is in production mode but is not in good standing. Please pay any outstanding invoices.")
+var Error403 = errors.New("The login is attempting to perform an action it does not have privileges to access. Verify your login credentials are for the appropriate account.")
+var Error404 = errors.New("The resource was not found with the given identifier. The response body will explain which resource was not found.")
+var Error405 = errors.New("The requested method is not valid at the given URL.")
+var Error406 = errors.New("The request's Accept header is not set to application/xml")
+var Error412 = errors.New("The request was unsuccessful because a condition was not met. For example, this message may be returned if you attempt to cancel a subscription for an account that has no subscription.")
+var Error429 = errors.New("You have made too many API requests in the last hour. Future API requests will be ignored until the beginning of the next hour.")
 
 //Recurly Generic Errors
 type RecurlyError struct {
@@ -94,12 +115,29 @@ func CreateRecurlyValidationError(resp *http.Response) (r RecurlyValidationError
 
 //Filter to decide which error type to create
 func createRecurlyError(resp *http.Response) ( error) {
-	if resp.StatusCode != 422 {
+	switch resp.StatusCode {
+	case 400:
+		return Error400
+	case 401:
+		return Error401
+	case 402:
+		return Error402
+	case 403:
+		return Error403
+	case 404:
+		return Error404
+	case 405:
+		return Error405
+	case 406:
+		return Error406
+	case 412:
+		return Error412
+	case 429:
+		return Error429
+	case 422 :
 		return CreateRecurlyStandardError(resp)
-	} else {
-		return CreateRecurlyValidationError(resp)
 	}
-	return nil
+	return CreateRecurlyValidationError(resp)
 }
 
 //Formatted General Error 
@@ -155,6 +193,63 @@ func (r *Recurly) GetAccounts(params ...url.Values) (AccountList, error){
 	return accountlist, nil
 }
 
+//Get a list of adjustments for an account
+func (r *Recurly) GetAdjustments(account_code string,params ...url.Values) (AdjustmentList, error){
+	adjlist := AdjustmentList{}
+	sendvars := url.Values{}
+	if params != nil {
+		sendvars = params[0] 
+		adjlist.perPage = sendvars.Get("per_page")
+	} 
+	if err := adjlist.initList(ACCOUNTS + "/" + account_code + "/"  + ADJUSTMENTS,sendvars,r); err == nil {
+		if xmlerr := xml.Unmarshal(adjlist.getRawBody(), &adjlist); xmlerr == nil {
+			for k,_ := range adjlist.Adjustments {
+				adjlist.Adjustments[k].r = r
+				adjlist.Adjustments[k].endpoint = ADJUSTMENTS
+			}
+			adjlist.r = r
+			adjlist.AccountCode = account_code
+			return adjlist, nil
+		} else {
+			if r.debug {
+				println(xmlerr.Error())
+			}
+			return adjlist, xmlerr
+		}
+	} else {
+		return adjlist, err
+	}
+	return adjlist, nil
+}
+
+//Get a list of coupons
+func (r *Recurly) GetCoupons(params ...url.Values) (CouponList, error){
+	cplist := CouponList{}
+	sendvars := url.Values{}
+	if params != nil {
+		sendvars = params[0] 
+		cplist.perPage = sendvars.Get("per_page")
+	} 
+	if err := cplist.initList(COUPONS,sendvars,r); err == nil {
+		if xmlerr := xml.Unmarshal(cplist.getRawBody(), &cplist); xmlerr == nil {
+			for k,_ := range cplist.Coupons {
+				cplist.Coupons[k].r = r
+				cplist.Coupons[k].endpoint = COUPONS
+			}
+			cplist.r = r
+			return cplist, nil
+		} else {
+			if r.debug {
+				println(xmlerr.Error())
+			}
+			return cplist, xmlerr
+		}
+	} else {
+		return cplist, err
+	}
+	return cplist, nil
+}
+
 //Get a single account by key
 func (r *Recurly) GetAccount(account_code string) (account Account, err error) {
 	account = r.NewAccount()
@@ -189,6 +284,106 @@ func (r *Recurly) GetAccount(account_code string) (account Account, err error) {
 	return account, nil
 }
 
+//Get a single account by key
+func (r *Recurly) GetAdjustment(uuid string) (adj Adjustment, err error) {
+	adj = r.NewAdjustment()
+	if resp,err := r.createRequest(ADJUSTMENTS + "/" + uuid,"GET", nil, nil); err == nil {
+		if resp.StatusCode == 200 {
+			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
+				if r.debug {
+					println(resp.Status)	
+					for k, _ := range resp.Header {
+						println(k + ":" + resp.Header[k][0])
+					}
+					fmt.Printf("%s\n", body) 
+					fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
+				}
+				//load object xml
+				if xmlerr := xml.Unmarshal(body, &adj); xmlerr != nil {
+					return adj,xmlerr
+				}
+				//everything went fine
+				return  adj,nil
+			} else {
+				//return read error
+				return adj,readerr
+			}
+			return adj,nil
+		} else {
+			return adj,createRecurlyError(resp)
+		}
+	} else {
+		return adj, err
+	}
+	return adj, nil
+}
+//Get a single account by key
+func (r *Recurly) GetCouponRedemption(account_code string) (red Redemption, err error) {
+	red.r = r
+	red.AccountCode = account_code
+	if resp,err := r.createRequest(ACCOUNTS + "/" + account_code + "/redemption","GET", nil, nil); err == nil {
+		if resp.StatusCode == 200 {
+			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
+				if r.debug {
+					println(resp.Status)	
+					for k, _ := range resp.Header {
+						println(k + ":" + resp.Header[k][0])
+					}
+					fmt.Printf("%s\n", body) 
+					fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
+				}
+				//load object xml
+				if xmlerr := xml.Unmarshal(body, &red); xmlerr != nil {
+					return red,xmlerr
+				}
+				//everything went fine
+				return  red,nil
+			} else {
+				//return read error
+				return red,readerr
+			}
+			return red,nil
+		} else {
+			return red,createRecurlyError(resp)
+		}
+	} else {
+		return red, err
+	}
+	return red, nil
+}
+//Get a single coupon
+func (r *Recurly) GetCoupon(uuid string) (coupon Coupon, err error) {
+	coupon = r.NewCoupon()
+	if resp,err := r.createRequest(COUPONS + "/" + uuid,"GET", nil, nil); err == nil {
+		if resp.StatusCode == 200 {
+			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
+				if r.debug {
+					println(resp.Status)	
+					for k, _ := range resp.Header {
+						println(k + ":" + resp.Header[k][0])
+					}
+					fmt.Printf("%s\n", body) 
+					fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
+				}
+				//load object xml
+				if xmlerr := xml.Unmarshal(body, &coupon); xmlerr != nil {
+					return coupon,xmlerr
+				}
+				//everything went fine
+				return  coupon,nil
+			} else {
+				//return read error
+				return coupon,readerr
+			}
+			return coupon,nil
+		} else {
+			return coupon,createRecurlyError(resp)
+		}
+	} else {
+		return coupon, err
+	}
+	return coupon, nil
+}
 //Create a new Account
 func (r *Recurly) NewAccount() (account Account) {
 	account.r = r
@@ -196,10 +391,24 @@ func (r *Recurly) NewAccount() (account Account) {
 	return
 }
 
+//Create a new Adjustment
+func (r *Recurly) NewAdjustment() (adj Adjustment) {
+	adj.r = r
+	adj.endpoint = ADJUSTMENTS
+	return
+}
+
 //Create new Billing Info
 func (r *Recurly) NewBillingInfo() (bi BillingInfo) {
 	bi.r = r
 	bi.endpoint = BILLINGINFO
+	return
+}
+
+//Create a new Coupon
+func (r *Recurly) NewCoupon() (c Coupon) {
+	c.r = r
+	c.endpoint = COUPONS
 	return
 }
 
@@ -384,22 +593,30 @@ func (p *Paging) SetData(rb []byte, count string, links string) {
 //Initialize the paging list values
 func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) ( error) { 
 	if resp, err := r.createRequest(endpoint,"GET",params, make([]byte,0)); err == nil {
-		defer resp.Body.Close()
-		if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
-			if r.debug {
-				println(resp.Status)	
-				for k, _ := range resp.Header {
-					println(k + ":" + resp.Header[k][0])
+		if resp.StatusCode < 400 {
+			defer resp.Body.Close()
+			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
+				if r.debug {
+					println(resp.Status)	
+					for k, _ := range resp.Header {
+						println(k + ":" + resp.Header[k][0])
+					}
+					fmt.Printf("%s\n", body) 
+					fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
 				}
-				fmt.Printf("%s\n", body) 
-				fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
+				if x := len(resp.Header["Link"]); x > 0{
+					p.SetData(body,resp.Header["X-Records"][0],resp.Header["Link"][0])
+				} else {
+					p.SetData(body,resp.Header["X-Records"][0],"")
+				}
+				//everything went fine
+				return  nil
+			} else {
+				//return read error
+				return readerr
 			}
-			p.SetData(body,resp.Header["X-Records"][0],resp.Header["Link"][0])
-			//everything went fine
-			return  nil
 		} else {
-			//return read error
-			return readerr
+			return createRecurlyError(resp) 
 		}
 	} else {
 		//return error message
@@ -551,6 +768,188 @@ func (a *Account) Close() (error) {
 func (a *Account) Reopen() (error) {
 	newaccount := new(Account)
 	return a.r.doUpdate(newaccount,a.endpoint + "/" + a.AccountCode + "/reopen")
+}
+
+//adjustment struct
+type Adjustment struct{
+	XMLName xml.Name `xml:"adjustment"`
+	endpoint string
+	r *Recurly
+	AccountCode string `xml:"-"`
+	UUID string `xml:"uuid,omitempty"`
+	Description string `xml:"description,omitempty"`
+	AccountingCode string `xml:"accounting_code,omitempty"`
+	Origin string `xml:"origin,omitempty"`
+	UnitAmountInCents string `xml:"unit_amount_in_cents,omitempty"`
+	Quantity string `xml:"quantity,omitempty"`
+	DiscountInCents string `xml:"discount_in_cents,omitempty"`
+	TaxInCents string `xml:"tax_in_cents,omitempty"`
+	Currency string `xml:"currency,omitempty"`
+	Taxable string `xml:"taxable,omitempty"`
+	StartDate string `xml:"start_date,omitempty"`
+	EndDate string `xml:"end_date,omitempty"`
+	CreatedAt string `xml:"created_at,omitempty"`
+}
+
+//Create a new adjustment and load updated fields
+func (a *Adjustment) Create() (error) {
+	if a.UUID != "" {
+		return RecurlyError{statusCode:400,Description:"Adjustment Already created"}
+	}
+	return a.r.doCreate(&a,ACCOUNTS + "/" + a.AccountCode + "/" + a.endpoint)
+}
+
+//delete and adjustment
+func (a *Adjustment) Delete() (error) {
+	return a.r.doDelete(a.endpoint + "/" + a.UUID)
+}
+type AdjustmentList struct {
+	Paging
+	r *Recurly
+	AccountCode string
+	XMLName xml.Name `xml:"adjustments"`
+	Adjustments []Adjustment `xml:"adjustment"`
+}
+
+//Get next set of adjustments
+func (a *AdjustmentList) Next() (bool) {
+	if a.next != "" {
+		v := url.Values{}
+		v.Set("cursor",a.next)
+		v.Set("per_page",a.perPage)
+		*a,_ = a.r.GetAdjustments(a.AccountCode,v)
+	} else {
+		return false
+	}
+	return true
+}
+
+//Get previous set of accounts
+func (a *AdjustmentList) Prev() ( bool) {
+	if a.prev != "" {
+		v := url.Values{}
+		v.Set("cursor",a.prev)
+		v.Set("per_page",a.perPage)
+		*a,_ = a.r.GetAdjustments(a.AccountCode,v)
+	} else {
+		return false
+	}
+	return true
+}
+
+//Go to start set of accounts
+func (a *AdjustmentList) Start() ( bool) {
+	if a.prev != "" {
+		v := url.Values{}
+		v.Set("per_page",a.perPage)
+		*a,_ = a.r.GetAdjustments(a.AccountCode,v)
+	} else {
+		return false
+	}
+	return true
+}
+
+type PlanCode struct {
+	XMLName xml.Name `xml:"plan_codes"`
+	PlanCode []string `xml:"plan_code"`
+}
+
+type Redemption struct {
+	XMLName xml.Name `xml:"redemption"`
+	r *Recurly
+	AccountCode string `xml:"account_code,omitempty"`
+	SingleUse string `xml:"single_use,omitempty"`
+	TotalDiscountedInCents string `xml:"total_discounted_in_cents,omitempty"`
+	Currency string `xml:"currency,omitempty"`
+	CreatedAt string `xml:"created_at,omitempty"`
+}
+
+//delete and redemption
+func (r *Redemption) Delete() (error) {
+	return r.r.doDelete(ACCOUNTS + "/" + r.AccountCode + "/redemption")
+}
+type Coupon struct{
+	XMLName xml.Name `xml:"coupon"`
+	endpoint string
+	r *Recurly
+	AccountCode string `xml:"-"`
+	CouponCode string `xml:"coupon_code"`
+	Name string `xml:"name"`
+	State string `xml:"state,omitempty"`
+	DiscountType string `xml:"discount_type,omitempty"`
+	DiscountPercent string `xml:"discount_percent,omitempty"`
+	RedeemByDate string `xml:"redeem_by_date,omitempty"`
+	SingleUse string `xml:"single_use,omitempty"`
+	AppliesForMonths string `xml:"applies_for_months,omitempty"`
+	MaxRedemptions string `xml:"max_redemptions,omitempty"`
+	AppliesToAllPlans string `xml:"applies_to_all_plans,omitempty"`
+	CreatedAt string `xml:"created_at,omitempty"`
+	PlanCodes PlanCode `xml:"plan_codes,omitempty"`
+}
+
+//Create a new adjustment and load updated fields
+func (c *Coupon) Create() (error) {
+	if c.CreatedAt != "" {
+		return RecurlyError{statusCode:400,Description:"Coupon Already created"}
+	}
+	return c.r.doCreate(&c,c.endpoint)
+}
+
+//Redeem a coupon on an account
+func (c *Coupon) Redeem(account_code string, currency string) (error) {
+	redemption := Redemption{AccountCode: account_code, Currency:currency}
+	redemption.r = c.r
+	return redemption.r.doCreate(&redemption,c.endpoint + "/" + c.CouponCode + "/redeem" )
+}
+
+//delete and adjustment
+func (c *Coupon) Deactivate() (error) {
+	return c.r.doDelete(c.endpoint + "/" + c.CouponCode)
+}
+
+type CouponList struct {
+	Paging
+	r *Recurly
+	XMLName xml.Name `xml:"coupons"`
+	Coupons []Coupon `xml:"coupon"`
+}
+
+//Get next set of Coupons
+func (c *CouponList) Next() (bool) {
+	if c.next != "" {
+		v := url.Values{}
+		v.Set("cursor",c.next)
+		v.Set("per_page",c.perPage)
+		*c,_ = c.r.GetCoupons(v)
+	} else {
+		return false
+	}
+	return true
+}
+
+//Get previous set of accounts
+func (c *CouponList) Prev() ( bool) {
+	if c.prev != "" {
+		v := url.Values{}
+		v.Set("cursor",c.prev)
+		v.Set("per_page",c.perPage)
+		*c,_ = c.r.GetCoupons(v)
+	} else {
+		return false
+	}
+	return true
+}
+
+//Go to start set of accounts
+func (c *CouponList) Start() ( bool) {
+	if c.prev != "" {
+		v := url.Values{}
+		v.Set("per_page",c.perPage)
+		*c,_ = c.r.GetCoupons(v)
+	} else {
+		return false
+	}
+	return true
 }
 
 /* end resource objects */
