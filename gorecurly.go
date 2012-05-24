@@ -1,8 +1,14 @@
 //Main GoRecurly Package
 package gorecurly
 
-//TODO: Do all billing_info tests
+//TODO: Do all tests
 //TODO: Introduce stubs for all resources
+//TODO: Invoice resources
+//TODO: Plans resources
+//TODO: Add ons resources
+//TODO: Subscriptions resources
+//TODO: Transactions resources
+//TODO: Recurly.js signing
 
 import (
 	"net/http"
@@ -431,7 +437,7 @@ func (r *Recurly) GetBillingInfo(account_code string) (bi BillingInfo, err error
 					return bi,xmlerr
 				}
 				//everything went fine
-				bi.AccountCode = account_code
+				bi.Account.endpoint = ACCOUNTS
 				return  bi,nil
 			} else {
 				//return read error
@@ -627,51 +633,6 @@ func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) ( erro
 
 /*resource objects */
 
-//Billing Info struct
-type BillingInfo struct {
-	XMLName xml.Name `xml:"billing_info"`
-	endpoint string
-	r *Recurly
-	AccountCode string `xml:"account_code,omitempty"`
-	FirstName string `xml:"first_name,omitempty"`
-	LastName string `xml:"last_name,omitempty"`
-	Address1 string `xml:"address1,omitempty"`
-	Address2 string `xml:"address2,omitempty"`
-	City string `xml:"city,omitempty"`
-	State string `xml:"state,omitempty"`
-	Zip string `xml:"zip,omitempty"`
-	Country string `xml:"country,omitempty"`
-	Phone string `xml:"phone,omitempty"`
-	VatNumber string `xml:"vat_number,omitempty"`
-	IPAddress string `xml:"ip_address,omitempty"`
-	IPAddressCountry string `xml:"ip_address_country,omitempty"`
-	Number string `xml:"number,omitempty"`
-	FirstSix string `xml:"first_six,omitempty"`
-	LastFour string `xml:"last_four,omitempty"`
-	VerificationValue string `xml:"verification_value,omitempty"`
-	CardType string `xml:"card_type,omitempty"`
-	Month string `xml:"month,omitempty"`
-	Year string `xml:"year,omitempty"`
-	BillingAgreementID string `xml:"billing_agreement_id,omitempty"`
-}
-
-//Update an billing info 
-func (b *BillingInfo) Update() (error) {
-	newbilling := new(BillingInfo)
-	*newbilling = *b
-	newbilling.AccountCode = ""
-	newbilling.FirstSix = ""
-	newbilling.LastFour = ""
-	newbilling.CardType = ""
-	return b.r.doUpdate(newbilling,ACCOUNTS + "/" + b.AccountCode + "/" + BILLINGINFO)
-}
-
-//Delete billing info for an account
-func (b *BillingInfo) Delete() (error) {
-	return b.r.doDelete(ACCOUNTS + "/" + b.AccountCode + "/" + BILLINGINFO)
-}
-
-
 //Account pager
 type AccountList struct {
 	Paging
@@ -769,6 +730,25 @@ func (a *Account) Reopen() (error) {
 	newaccount := new(Account)
 	return a.r.doUpdate(newaccount,a.endpoint + "/" + a.AccountCode + "/reopen")
 }
+/* Stub */
+type stub struct {
+	HREF string `xml:"href,attr"`
+	endpoint string `xml:",-"`
+}
+
+func (s stub) GetCode() (code string) {
+	code = "invalidcode"
+	if s.HREF != "" {
+		code = strings.Replace(s.HREF,URL + s.endpoint + "/","",-1)
+	}
+	return 
+}
+
+//Account Stub struct
+type AccountStub struct {
+	XMLName xml.Name `xml:"account"`
+	stub
+}
 
 //adjustment struct
 type Adjustment struct{
@@ -847,6 +827,56 @@ func (a *AdjustmentList) Start() ( bool) {
 		return false
 	}
 	return true
+}
+
+//Billing Info struct
+type BillingInfo struct {
+	XMLName xml.Name `xml:"billing_info"`
+	endpoint string
+	r *Recurly
+	Account *AccountStub `xml:"account,omitempty"`
+	AccountCode string `xml:"account_code,omitempty"`
+	FirstName string `xml:"first_name,omitempty"`
+	LastName string `xml:"last_name,omitempty"`
+	Address1 string `xml:"address1,omitempty"`
+	Address2 string `xml:"address2,omitempty"`
+	City string `xml:"city,omitempty"`
+	State string `xml:"state,omitempty"`
+	Zip string `xml:"zip,omitempty"`
+	Country string `xml:"country,omitempty"`
+	Phone string `xml:"phone,omitempty"`
+	VatNumber string `xml:"vat_number,omitempty"`
+	IPAddress string `xml:"ip_address,omitempty"`
+	IPAddressCountry string `xml:"ip_address_country,omitempty"`
+	Number string `xml:"number,omitempty"`
+	FirstSix string `xml:"first_six,omitempty"`
+	LastFour string `xml:"last_four,omitempty"`
+	VerificationValue string `xml:"verification_value,omitempty"`
+	CardType string `xml:"card_type,omitempty"`
+	Month string `xml:"month,omitempty"`
+	Year string `xml:"year,omitempty"`
+	BillingAgreementID string `xml:"billing_agreement_id,omitempty"`
+}
+
+//Update an billing info 
+func (b *BillingInfo) Update() (error) {
+	newbilling := new(BillingInfo)
+	*newbilling = *b
+	newbilling.AccountCode = ""
+	newbilling.Account = nil
+	newbilling.FirstSix = ""
+	newbilling.LastFour = ""
+	newbilling.CardType = ""
+	return b.r.doUpdate(newbilling,ACCOUNTS + "/" + b.Account.GetCode() + "/" + BILLINGINFO)
+}
+
+//Delete billing info for an account
+func (b *BillingInfo) Delete() (error) {
+	return b.r.doDelete(ACCOUNTS + "/" + b.AccountCode + "/" + BILLINGINFO)
+}
+
+func (b BillingInfo) GetAccount() (Account,error) {
+	return b.r.GetAccount(b.Account.GetCode())
 }
 
 type PlanCode struct {
