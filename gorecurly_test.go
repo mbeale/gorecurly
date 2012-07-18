@@ -83,8 +83,8 @@ func TestA(t *testing.T) {
 	acc2.B.FirstName = "test-fname-" + rvalue
 	acc2.B.LastName = "test-last-" + rvalue
 	acc2.B.Number = "4111111111111111"
-	acc2.B.Month = "12"
-	acc2.B.Year = "2015"
+	acc2.B.Month = 12
+	acc2.B.Year = 2015
 	acc2.B.VerificationValue = "123"
 	if err := acc2.Create(); err != nil {
 		t.Fatal(err.Error())
@@ -102,8 +102,8 @@ func TestA(t *testing.T) {
 	acc3.B.FirstName = "test-fname-" + rvalue
 	acc3.B.LastName = "test-last-" + rvalue
 	acc3.B.Number = "4111111111111111"
-	acc3.B.Month = "12"
-	acc3.B.Year = "2015"
+	acc3.B.Month = 12
+	acc3.B.Year = 2015
 	acc3.B.VerificationValue = "123"
 	if err := acc3.Create(); err != nil {
 		t.Fatal(err.Error())

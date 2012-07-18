@@ -5,14 +5,15 @@ package gorecurly
 //TODO: Check all comments when finished 
 //TODO: Check that state is working with lists
 //TODO: Introduce stubs for all resources
-//TODO: Invoice resources
+//TODO: Postpone  
 //TODO: PDF Invoice
-//TODO: Plans resources
 //TODO: Add ons resources
 //TODO: Subscriptions resources
 //TODO: Transactions resources
 //TODO: Recurly.js signing
-//TODO: commit patch to properly encode dates
+//TODO: transparent post
+//TODO: Double check fields and make sure no new fields were added
+//TODO: Option to add no auth to header "Recurly-Skip-Authorization: true"
 
 import (
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"fmt"
 	"time"
 	"strings"
+	"strconv"
 	"encoding/xml"
 	"net/url"
 )
@@ -146,9 +148,9 @@ func createRecurlyError(resp *http.Response) ( error) {
 	case 429:
 		return Error429
 	case 422 :
-		return CreateRecurlyStandardError(resp)
+		return CreateRecurlyValidationError(resp)
 	}
-	return CreateRecurlyValidationError(resp)
+	return CreateRecurlyStandardError(resp)
 }
 
 //Formatted General Error 
@@ -316,6 +318,34 @@ func (r *Recurly) GetInvoices(params ...url.Values) (InvoiceList, error){
 		return invoicelist, err
 	}
 	return invoicelist, nil
+}
+
+//Get a list of Plans
+func (r *Recurly) GetPlans(params ...url.Values) (PlanList, error){
+	planlist := PlanList{}
+	sendvars := url.Values{}
+	if params != nil {
+		sendvars = params[0] 
+		planlist.perPage = sendvars.Get("per_page")
+	} 
+	if err := planlist.initList(PLANS,sendvars,r); err == nil {
+		if xmlerr := xml.Unmarshal(planlist.getRawBody(), &planlist); xmlerr == nil {
+			for k,_ := range planlist.Plans {
+				planlist.Plans[k].r = r
+				planlist.Plans[k].endpoint = PLANS
+			}
+			planlist.r = r
+			return planlist, nil
+		} else {
+			if r.debug {
+				println(xmlerr.Error())
+			}
+			return planlist, xmlerr
+		}
+	} else {
+		return planlist, err
+	}
+	return planlist, nil
 }
 
 //Get a single account by key
@@ -487,6 +517,40 @@ func (r *Recurly) GetInvoice(uuid string) (invoice Invoice, err error) {
 	return invoice, nil
 }
 
+//Get a single plan by key
+func (r *Recurly) GetPlan(plan_code string) (plan Plan, err error) {
+	plan = r.NewPlan()
+	if resp,err := r.createRequest(PLANS + "/" + plan_code,"GET", nil, nil); err == nil {
+		if resp.StatusCode == 200 {
+			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
+				if r.debug {
+					println(resp.Status)	
+					for k, _ := range resp.Header {
+						println(k + ":" + resp.Header[k][0])
+					}
+					fmt.Printf("%s\n", body) 
+					fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
+				}
+				//load object xml
+				if xmlerr := xml.Unmarshal(body, &plan); xmlerr != nil {
+					return plan,xmlerr
+				}
+				//everything went fine
+				return  plan,err
+			} else {
+				//return read error
+				return plan,readerr
+			}
+			return plan,nil
+		} else {
+			return plan,createRecurlyError(resp)
+		}
+	} else {
+		return plan, err
+	}
+	return plan, nil
+}
+
 //Create a new Account
 func (r *Recurly) NewAccount() (account Account) {
 	account.r = r
@@ -512,6 +576,30 @@ func (r *Recurly) NewBillingInfo() (bi BillingInfo) {
 func (r *Recurly) NewCoupon() (c Coupon) {
 	c.r = r
 	c.endpoint = COUPONS
+	return
+}
+
+//Create a new Plan
+func (r *Recurly) NewPlan() (plan Plan) {
+	plan.r = r
+	plan.endpoint = PLANS
+	return
+}
+
+func (r *Recurly) NewPlanAddOn() (planAddOn PlanAddOn) {
+	planAddOn.r = r
+	return
+}
+
+func (r *Recurly) NewSubscription() (subscription Subscription) {
+	subscription.r = r
+	subscription.endpoint = SUBSCRIPTIONS
+	return
+}
+
+func (r *Recurly) NewTransaction() (transaction Transaction) {
+	transaction.r = r
+	transaction.endpoint = TRANSACTIONS
 	return
 }
 
@@ -744,253 +832,6 @@ func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) ( erro
 
 /*resource objects */
 
-//Account pager
-type AccountList struct {
-	Paging
-	r *Recurly
-	XMLName xml.Name `xml:"accounts"`
-	Account []Account `xml:"account"`
-}
-
-//Get next set of accounts
-func (a *AccountList) Next() (bool) {
-	if a.next != "" {
-		v := url.Values{}
-		v.Set("cursor",a.next)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccounts(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Get previous set of accounts
-func (a *AccountList) Prev() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("cursor",a.prev)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccounts(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Go to start set of accounts
-func (a *AccountList) Start() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccounts(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Account struct
-type Account struct{
-	XMLName xml.Name `xml:"account"`
-	endpoint string
-	r *Recurly
-	AccountCode string `xml:"account_code"`
-	Username string `xml:"username"`
-	Email string `xml:"email"`
-	State string `xml:"state,omitempty"`
-	FirstName string `xml:"first_name"`
-	LastName string `xml:"last_name"`
-	CompanyName string `xml:"company_name"`
-	AcceptLanguage string `xml:"accept_language"`
-	HostedLoginToken string `xml:"hosted_login_token,omitempty"`
-	CreatedAt *time.Time `xml:"created_at,omitempty"`
-	B *BillingInfo `xml:"billing_info,omitempty"` 
-}
-
-//Create a new account and load updated fields
-func (a *Account) Create() (error) {
-	if a.CreatedAt != nil || a.HostedLoginToken != "" || a.State != "" {
-		return RecurlyError{statusCode:400,Description:"Account Code Already in Use"}
-	}
-	err := a.r.doCreate(&a,a.endpoint)
-	if err == nil {
-		a.B = nil
-	}
-	return err
-}
-
-//Update an account 
-func (a *Account) Update() (error) {
-	newaccount := new(Account)
-	*newaccount = *a
-	newaccount.State = ""
-	newaccount.HostedLoginToken = ""
-	newaccount.CreatedAt = nil
-	newaccount.B = nil
-	return a.r.doUpdate(newaccount,a.endpoint + "/" + a.AccountCode)
-}
-
-//Close an account
-func (a *Account) Close() (error) {
-	return a.r.doDelete(a.endpoint + "/" + a.AccountCode)
-}
-
-//Reopen a closed account
-func (a *Account) Reopen() (error) {
-	newaccount := new(Account)
-	return a.r.doUpdate(newaccount,a.endpoint + "/" + a.AccountCode + "/reopen")
-}
-/* Stub */
-type stub struct {
-	HREF string `xml:"href,attr"`
-	endpoint string `xml:",-"`
-}
-
-func (s stub) GetCode() (code string) {
-	code = "invalidcode"
-	if s.HREF != "" {
-		code = strings.Replace(s.HREF,URL + s.endpoint + "/","",-1)
-	}
-	return 
-}
-
-//Account Stub struct
-type AccountStub struct {
-	XMLName xml.Name `xml:"account"`
-	stub
-}
-
-//adjustment struct
-type Adjustment struct{
-	XMLName xml.Name `xml:"adjustment"`
-	endpoint string
-	r *Recurly
-	Type string `xml:"type,attr"`
-	AccountCode string `xml:"-"`
-	UUID string `xml:"uuid,omitempty"`
-	Description string `xml:"description,omitempty"`
-	AccountingCode string `xml:"accounting_code,omitempty"`
-	Origin string `xml:"origin,omitempty"`
-	UnitAmountInCents int `xml:"unit_amount_in_cents,omitempty"`
-	Quantity int `xml:"quantity,omitempty"`
-	DiscountInCents int `xml:"discount_in_cents,omitempty"`
-	TaxInCents int `xml:"tax_in_cents,omitempty"`
-	Currency string `xml:"currency,omitempty"`
-	Taxable bool `xml:"taxable,omitempty"`
-	StartDate *time.Time `xml:"start_date,omitempty"`
-	EndDate *time.Time `xml:"end_date,omitempty"`
-	CreatedAt *time.Time `xml:"created_at,omitempty"`
-}
-
-//Create a new adjustment and load updated fields
-func (a *Adjustment) Create() (error) {
-	if a.UUID != "" {
-		return RecurlyError{statusCode:400,Description:"Adjustment Already created"}
-	}
-	return a.r.doCreate(&a,ACCOUNTS + "/" + a.AccountCode + "/" + a.endpoint)
-}
-
-//delete and adjustment
-func (a *Adjustment) Delete() (error) {
-	return a.r.doDelete(a.endpoint + "/" + a.UUID)
-}
-type AdjustmentList struct {
-	Paging
-	r *Recurly
-	AccountCode string
-	XMLName xml.Name `xml:"adjustments"`
-	Adjustments []Adjustment `xml:"adjustment"`
-}
-
-//Get next set of adjustments
-func (a *AdjustmentList) Next() (bool) {
-	if a.next != "" {
-		v := url.Values{}
-		v.Set("cursor",a.next)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAdjustments(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Get previous set of accounts
-func (a *AdjustmentList) Prev() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("cursor",a.prev)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAdjustments(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Go to start set of accounts
-func (a *AdjustmentList) Start() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAdjustments(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Billing Info struct
-type BillingInfo struct {
-	XMLName xml.Name `xml:"billing_info"`
-	endpoint string
-	r *Recurly
-	Account *AccountStub `xml:"account,omitempty"`
-	AccountCode string `xml:"account_code,omitempty"`
-	FirstName string `xml:"first_name,omitempty"`
-	LastName string `xml:"last_name,omitempty"`
-	Address1 string `xml:"address1,omitempty"`
-	Address2 string `xml:"address2,omitempty"`
-	City string `xml:"city,omitempty"`
-	State string `xml:"state,omitempty"`
-	Zip string `xml:"zip,omitempty"`
-	Country string `xml:"country,omitempty"`
-	Phone string `xml:"phone,omitempty"`
-	VatNumber string `xml:"vat_number,omitempty"`
-	IPAddress string `xml:"ip_address,omitempty"`
-	IPAddressCountry string `xml:"ip_address_country,omitempty"`
-	Number string `xml:"number,omitempty"`
-	FirstSix string `xml:"first_six,omitempty"`
-	LastFour string `xml:"last_four,omitempty"`
-	VerificationValue string `xml:"verification_value,omitempty"`
-	CardType string `xml:"card_type,omitempty"`
-	Month int `xml:"month,omitempty"`
-	Year int `xml:"year,omitempty"`
-	BillingAgreementID string `xml:"billing_agreement_id,omitempty"`
-}
-
-//Update an billing info 
-func (b *BillingInfo) Update() (error) {
-	newbilling := new(BillingInfo)
-	*newbilling = *b
-	newbilling.AccountCode = ""
-	newbilling.Account = nil
-	newbilling.FirstSix = ""
-	newbilling.LastFour = ""
-	newbilling.CardType = ""
-	return b.r.doUpdate(newbilling,ACCOUNTS + "/" + b.Account.GetCode() + "/" + BILLINGINFO)
-}
-
-//Delete billing info for an account
-func (b *BillingInfo) Delete() (error) {
-	return b.r.doDelete(ACCOUNTS + "/" + b.AccountCode + "/" + BILLINGINFO)
-}
-
-func (b BillingInfo) GetAccount() (Account,error) {
-	return b.r.GetAccount(b.Account.GetCode())
-}
-
 type PlanCode struct {
 	XMLName xml.Name `xml:"plan_codes"`
 	PlanCode []string `xml:"plan_code"`
@@ -1211,44 +1052,304 @@ func (a *AccountInvoiceList) Start() ( bool) {
 	return true
 }
 
+type CurrencyMarshalArray struct {
+	CurrencyList []*Currency `xml:""`
+}
+
 type CurrencyArray struct {
-	CurrencyList []Currency
+	CurrencyList []Currency `xml:",any"`
 }
 
 func (c *CurrencyArray) AddCurrency(currency string, amount int) {
-	newc := Currency{Amount:amount}
-	newc.XMLName.Local = currency
-	c.CurrencyList = append(c.CurrencyList, newc)
+	if c == nil {
+		c = &CurrencyArray{}
+	}
+	if k := c.findCurrency(currency); k >= 0 {
+		//update instead of insert
+		c.CurrencyList[k].Amount = fmt.Sprintf("%v",amount)
+	} else {
+		newc := Currency{Amount:fmt.Sprintf("%v",amount)}
+		newc.XMLName.Local = currency
+		c.CurrencyList = append(c.CurrencyList, newc)
+	}
+}
+
+func (c *CurrencyArray) findCurrency(currency string) (key int) {
+	if c == nil{
+		return -1
+	}
+	for k, v := range c.CurrencyList {
+		if v.XMLName.Local == currency {
+			return k
+		} 
+	}
+	return -1
+}
+
+func (c *CurrencyArray) GetCurrencyValue(currency string) (value int, e error) {
+	if k := c.findCurrency(currency); k >= 0 {
+		value, e = strconv.Atoi(c.CurrencyList[k].Amount)
+		return
+	}
+	e = errors.New(fmt.Sprintf("%s not found",currency))
+	return
 }
 
 type Currency struct {
-	XMLName xml.Name
-	Amount int `xml:",innerxml"`
+	XMLName xml.Name `xml:""`
+	Amount string `xml:",chardata"`
+}
+
+type PlanFields struct {
+	endpoint string
+	r *Recurly
+	//AddOns *AddOnsStub `xml:"add_ons,omitempty"`
+	Name string `xml:"name,omitempty"`
+	PlanCode string `xml:"plan_code,omitempty"`
+	Description string `xml:"description,omitempty"`
+	SuccessUrl string `xml:"success_url,omitempty"`
+	CancelUrl string `xml:"cancel_url,omitempty"`
+	DisplayDonationAmounts bool `xml:"display_donation_amounts,omitempty"`
+	DisplayQuantity bool `xml:"display_quantity,omitempty"`
+	DisplayPhoneNumber bool `xml:"display_phone_number,omitempty"`
+	BypassHostedConfirmation bool `xml:"bypass_hosted_confirmation,omitempty"`
+	UnitName string `xml:"unit_name,omitempty"`
+	PaymentPageTOSLink string `xml:"payment_page_tos_link,omitempty"`
+	PlanIntervalLength int `xml:"plan_interval_length,omitempty"`
+	PlanIntervalUnit string `xml:"plan_interval_unit,omitempty"`
+	AccountingCode string `xml:"accounting_code,omitempty"`
+	CreatedAt *time.Time `xml:"created_at,omitempty"`
+}
+
+type TempPlan struct {
+	XMLName xml.Name `xml:"plan"`
+	PlanFields
+	SetupFeeInCents *CurrencyMarshalArray `xml:"setup_fee_in_cents,omitempty"`
+	UnitAmountInCents *CurrencyMarshalArray `xml:"unit_amount_in_cents,omitempty"`
+}
+
+type PlanList struct {
+	Paging
+	r *Recurly
+	XMLName xml.Name `xml:"plans"`
+	Plans []Plan `xml:"plan"`
+}
+type Plan struct {
+	XMLName xml.Name `xml:"plan"`
+	PlanFields
+	SetupFeeInCents *CurrencyArray `xml:"setup_fee_in_cents,omitempty"`
+	UnitAmountInCents *CurrencyArray `xml:"unit_amount_in_cents,omitempty"`
+}
+
+func (p *Plan) Create() (error) {
+	if p.CreatedAt != nil {
+		return RecurlyError{statusCode:400,Description:"Plan Code Already in Use"}
+	}
+	return p.r.doCreate(&p,p.endpoint)
+}
+
+func (p *Plan) Update() (error) {
+	newplan := new(TempPlan)
+	newplan.Name = p.Name
+	newplan.PlanCode = p.PlanCode
+	newplan.UnitName = p.UnitName
+	newplan.PlanIntervalUnit = p.PlanIntervalUnit
+	newplan.CreatedAt = nil
+	//Total hack job 
+	//due to limitation of XML.marshal not recognizing "any" tag
+	//could be fixed in future go releases
+	setupFeeInCents := make([]*Currency,len(p.SetupFeeInCents.CurrencyList))
+	unitAmountInCents := make([]*Currency,len(p.UnitAmountInCents.CurrencyList))
+	newplan.SetupFeeInCents = &CurrencyMarshalArray{setupFeeInCents} 
+	newplan.UnitAmountInCents = &CurrencyMarshalArray{unitAmountInCents} 
+	for k,_ := range p.SetupFeeInCents.CurrencyList {
+		newplan.SetupFeeInCents.CurrencyList[k] = &p.SetupFeeInCents.CurrencyList[k]
+	}
+	for k,_ := range p.UnitAmountInCents.CurrencyList {
+		newplan.UnitAmountInCents.CurrencyList[k] = &p.UnitAmountInCents.CurrencyList[k]
+	}
+	//end hack job
+	if len(newplan.SetupFeeInCents.CurrencyList) <= 0 {
+		newplan.SetupFeeInCents = nil
+	}
+	if len(newplan.UnitAmountInCents.CurrencyList) <= 0 {
+		newplan.UnitAmountInCents = nil
+	}
+
+	return p.r.doUpdate(newplan,p.endpoint + "/" + p.PlanCode)
+}
+
+func (p *Plan) Delete() (error) {
+	return p.r.doDelete(p.endpoint + "/" + p.PlanCode)
+}
+
+//Account Stub struct
+type PlanStub struct {
+	XMLName xml.Name `xml:"plan"`
+	stub
+}
+
+type PlanAddOn struct {
+	XMLName xml.Name `xml:"add_on"`
+	endpoint string
+	r *Recurly
+	Plan *PlanStub `xml:"plan,omitempty"`
+	Name string `xml:"name,omitempty"`
+	AddOnCode string `xml:"add_on_code,omitempty"`
+	DisplayQuantityOnHostedPage bool `xml:"display_quantity_on_hosted_page,omitempty"`
+	DefaultQuantity int `xml:"default_quantity,omitempty"`
+	UnitAmountInCents *CurrencyArray `xml:"unit_amount_in_cents,omitempty"`
+	CreatedAt *time.Time `xml:"created_at,omitempty"`
+}
+
+func (p *PlanAddOn) Create(plan_code string) (error) {
+	if p.CreatedAt != nil {
+		return RecurlyError{statusCode:400,Description:"Add on Code Already in Use"}
+	}
+	//unitAmountInCents := make([]*Currency,len(p.UnitAmountInCents.CurrencyList))
+	//p.UnitAmountInCents = CurrencyMarshalArray{unitAmountInCents} 
+	//for k,_ := range p.UnitAmountInCents.CurrencyList {
+	//	p.UnitAmountInCents.CurrencyList[k] = &p.UnitAmountInCents.CurrencyList[k]
+	//}
+	return p.r.doCreate(&p,PLANS + "/" + plan_code + "/add_ons")
+}
+
+func (p *PlanAddOn) Update() (error) {
+	newplan := new(TempPlan)
+	/*newplan.Name = p.Name
+	newplan.PlanCode = p.PlanCode
+	newplan.UnitName = p.UnitName
+	newplan.PlanIntervalUnit = p.PlanIntervalUnit
+	newplan.CreatedAt = nil
+	//Total hack job 
+	//due to limitation of XML.marshal not recognizing "any" tag
+	//could be fixed in future go releases
+	setupFeeInCents := make([]*Currency,len(p.SetupFeeInCents.CurrencyList))
+	unitAmountInCents := make([]*Currency,len(p.UnitAmountInCents.CurrencyList))
+	newplan.SetupFeeInCents = &CurrencyMarshalArray{setupFeeInCents} 
+	newplan.UnitAmountInCents = &CurrencyMarshalArray{unitAmountInCents} 
+	for k,_ := range p.SetupFeeInCents.CurrencyList {
+		newplan.SetupFeeInCents.CurrencyList[k] = &p.SetupFeeInCents.CurrencyList[k]
+	}
+	for k,_ := range p.UnitAmountInCents.CurrencyList {
+		newplan.UnitAmountInCents.CurrencyList[k] = &p.UnitAmountInCents.CurrencyList[k]
+	}
+	//end hack job
+	if len(newplan.SetupFeeInCents.CurrencyList) <= 0 {
+		newplan.SetupFeeInCents = nil
+	}
+	if len(newplan.UnitAmountInCents.CurrencyList) <= 0 {
+		newplan.UnitAmountInCents = nil
+	}*/
+
+	return p.r.doUpdate(newplan,PLANS + "/" + p.Plan.GetCode() + "/add_ons/" + p.AddOnCode)
+}
+
+func (p *PlanAddOn) Delete() (error) {
+	return p.r.doDelete(PLANS + "/" + p.Plan.GetCode() + "/add_ons/" + p.AddOnCode)
+}
+
+func (p *PlanAddOn) AddCurrency(currency string, amount int) {
+	if p.UnitAmountInCents == nil {
+		p.UnitAmountInCents = &CurrencyArray{}
+	}
+	p.UnitAmountInCents.AddCurrency(currency, amount)
 }
 
 
-type Plan struct {
-	XMLName xml.Name `xml:"plan"`
+type Subscription struct {
+	XMLName xml.Name `xml:"subscription"`
 	endpoint string
 	r *Recurly
-	//AddOns *AccountStub `xml:"add_ons,omitempty"`
-	Name string `xml:"name,omitempty"`
-	PlanCode string `xml:"state,omitempty"`
-	Description string `xml:"po_number,omitempty"`
-	SuccessUrl string `xml:"invoice_number,omitempty"`
-	CancelUrl string `xml:"vat_number,omitempty"`
-	DisplayDontaionAmounts bool `xml:"subtotal_in_cents,omitempty"`
-	DisplayQuantity bool `xml:"tax_in_cents,omitempty"`
-	DisplayPhoneNumber bool `xml:"tax_in_cents,omitempty"`
-	BypassHostedConfirmation bool `xml:"tax_in_cents,omitempty"`
-	UnitName string `xml:"tax_in_cents,omitempty"`
-	PaymentPageTOSLink string `xml:"total_in_cents,omitempty"`
-	PlanIntervalLength int `xml:"currency,omitempty"`
-	PlanIntervalUnit string `xml:"currency,omitempty"`
-	AccountingCode string `xml:"currency,omitempty"`
+	Timeframe string `xml:"timeframe,omitempty"`
+	Account *AccountStub `xml:"account,omitempty"`
+	//Plan *PlanStub `xml:"plan,omitempty"`
+	UUID string `xml:"uuid,omitempty"`
+	State string `xml:"state,omitempty"`
+	UnitAmountInCents int `xml:"unit_amount_in_cents,omitempty"`
+	Currency string `xml:"currency,omitempty"`
+	Quantity string `xml:"quantity,omitempty"`
+	ActivatedAt *time.Time `xml:"activated_at,omitempty"`
+	CanceledAt *time.Time `xml:"canceled_at,omitempty"`
+	ExpiresAt *time.Time `xml:"expires_at,omitempty"`
+	CurrentPeriodStartedAt *time.Time `xml:"current_period_starts_at,omitempty"`
+	CurrentPeriodEndsAt *time.Time `xml:"currenct_period_ends_at,omitempty"`
+	TrialStartedAt *time.Time `xml:"trial_started_at,omitempty"`
+	TrialEndsAt *time.Time `xml:"trial_ends_at,omitempty"`
+	//SubscriptionAddOns 
+}
+
+func (s *Subscription) Create() (error) {
+	if s.UUID != "" {
+		return RecurlyError{statusCode:400,Description:"Subscription Already in Use"}
+	}
+	return s.r.doCreate(&s,s.endpoint)
+}
+
+func (s *Subscription) Cancel() (error) {
+	return s.r.doUpdate(s,SUBSCRIPTIONS + "/" + s.UUID + "/cancel")
+}
+func (s *Subscription) Update(now bool) (error) {
+	newplan := new(Subscription)
+	*newplan = *s
+	if now {
+		newplan.Timeframe = "now"
+	} else {
+		newplan.Timeframe = "renewal"
+	}
+	newplan.ActivatedAt = nil
+	newplan.CanceledAt = nil
+	newplan.ExpiresAt = nil
+	newplan.CurrentPeriodStartedAt = nil
+	newplan.CurrentPeriodEndsAt = nil
+	newplan.TrialStartedAt = nil
+	newplan.TrialEndsAt = nil
+	return s.r.doUpdate(newplan,s.endpoint + "/" + s.UUID)
+}
+
+func (s *Subscription) Delete() (error) {
+	return s.r.doDelete(s.endpoint + "/" + s.UUID)
+}
+
+
+type Transaction struct {
+	XMLName xml.Name `xml:"transaction"`
+	endpoint string
+	r *Recurly
+	Account *AccountStub `xml:"account,omitempty"`
+	//Invoice *InvoiceStub `xml:"invoice,omitempty"`
+	//Subscription *SubscriptionStub `xml:"subscription,omitempty"`
+	UUID string `xml:"uuid,omitempty"`
+	Action string `xml:"action,omitempty"`
+	State string `xml:"state,omitempty"`
+	AmountInCents int `xml:"amount_in_cents,omitempty"`
+	TaxInCents int `xml:"tax_in_cents,omitempty"`
+	Currency string `xml:"currency,omitempty"`
+	Status string `xml:"status,omitempty"`
+	Reference string `xml:"reference,omitempty"`
+	Test bool `xml:"test,omitempty"`
+	Voidable bool `xml:"voidable,omitempty"`
+	Refundable bool `xml:"refundable,omitempty"`
+	CVVResult string `xml:"cvv_result,omitempty"`
+	AVSResult string `xml:"avs_result,omitempty"`
+	AVSResultStreet string `xml:"avs_result_street,omitempty"`
+	AVSResultPostal string `xml:"avs_result_postal,omitempty"`
+	//Details not implemented
 	CreatedAt *time.Time `xml:"created_at,omitempty"`
-	UnitAmountInCents Currency `xml:",omitempty"`
-	SetupFeeInCents Currency `xml:",omitempty"`
+}
+
+/* Stub */
+type stub struct {
+	HREF string `xml:"href,attr"`
+	endpoint string `xml:",-"`
+}
+
+func (s stub) GetCode() (code string) {
+	code = "invalidcode"
+	if s.HREF != "" {
+		code = strings.Replace(s.HREF,URL + s.endpoint + "/","",-1)
+	}
+	return 
 }
 /* end resource objects */
 

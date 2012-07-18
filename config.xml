@@ -1,4 +1,5 @@
 <settings>
 	<apikey></apikey>
 	<jskey></jskey>
+	<currency>USD</currency>
 </settings>
