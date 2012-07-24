@@ -14,10 +14,12 @@ package gorecurly
 //TODO: Double check fields and make sure no new fields were added
 //TODO: Option to add no auth to header "Recurly-Skip-Authorization: true"
 //TODO: Maybe some examples fetching with goroutines
+//TODO: Add a variable to test if subscription is in trial
 
 import (
 	"net/http"
 	"io"
+	"time"
 	"errors"
 	"bytes"
 	"io/ioutil"
@@ -744,6 +746,47 @@ func (r *Recurly) createRequest(endpoint string, method string, params url.Value
 	return nil, nil
 }
 
+//process create request
+func (r *Recurly) doCreateReturn(v,ret interface{}, endpoint string) (e error) {
+	if xmlstring, err := xml.MarshalIndent(v, "", "    "); err == nil {
+		xmlstring = []byte(xml.Header + string(xmlstring))
+		if r.debug {
+			fmt.Printf("%s\n",xmlstring)
+		}
+		if resp, reqerr := r.createRequest(endpoint, "POST", nil, xmlstring); reqerr == nil {
+			if resp.StatusCode < 400 {
+				if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
+					if r.debug {
+						println(resp.Status)	
+						for k, _ := range resp.Header {
+							println(k + ":" + resp.Header[k][0])
+						}
+						fmt.Printf("%s\n", body) 
+						fmt.Printf("Content-Length:%v\n", resp.ContentLength) 
+					}
+					//load object xml
+					if xmlerr := xml.Unmarshal(body, ret); xmlerr != nil {
+						return xmlerr
+					}
+					//everything went fine
+					return  nil
+				} else {
+					//return read error
+					return readerr
+				}
+				return nil
+			} else {
+				return createRecurlyError(resp)
+			}
+		} else {
+			return reqerr
+		}
+	} else {
+		return err
+	}
+	return nil
+}
+
 //Create a resource from struct, uses POST method
 func (r *Recurly) doCreate(v interface{}, endpoint string) (error) {
 	if xmlstring, err := xml.MarshalIndent(v, "", "    "); err == nil {
@@ -965,6 +1008,18 @@ func (s stub) GetCode() (code string) {
 		code = codes[1]
 	}
 	return 
+}
+
+type RecurlyDate struct {
+	Raw string `xml:",innerxml"`
+}
+
+func (r RecurlyDate) GetDate() (time.Time,error) {
+	if r.Raw == "" {
+		return time.Now(),errors.New("Datetime is blank")
+	}
+	t, err := time.Parse(time.RFC3339, r.Raw)
+	return t,err
 }
 /* end resource objects */
 
