@@ -1,18 +1,18 @@
 //Main GoRecurly Package
 package gorecurly
 
-//TODO: Do all tests, do with mock server
+//TODO: Do all tests, do with mock server, need to fix URL so that it can be overriden
 //TODO: Check all comments when finished 
 //TODO: Check that state is working with lists
 //TODO: Introduce stubs for all resources
 //TODO: PDF Invoice
-//TODO: Transactions resources
 //TODO: Recurly.js signing
 //TODO: transparent post (probably not)
 //TODO: Double check fields and make sure no new fields were added
 //TODO: Option to add no auth to header "Recurly-Skip-Authorization: true"
 //TODO: Maybe some examples fetching with goroutines
 //TODO: Add a variable to test if subscription is in trial
+//TODO: Custom function to calculate account balance
 
 import (
 	"bytes"
@@ -56,6 +56,7 @@ func InitRecurly(apikey string, jskey string) *Recurly {
 	r := new(Recurly)
 	r.apiKey = apikey
 	r.JSKey = jskey
+	r.url = URL
 	return r
 }
 
@@ -116,7 +117,6 @@ func CreateRecurlyStandardError(resp *http.Response) (r RecurlyError) {
 func CreateRecurlyValidationError(resp *http.Response) (r RecurlyValidationErrors) {
 	r.statusCode = resp.StatusCode
 	if xmlstring, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
-		println(string(xmlstring))
 		if xmlerr := xml.Unmarshal(xmlstring, &r); xmlerr != nil {
 			//r.Description = xmlerr.Error()
 			println(xmlerr.Error())
@@ -168,8 +168,8 @@ func (r RecurlyValidationErrors) Error() string {
 
 //Main Recurly Client
 type Recurly struct {
-	apiKey, JSKey string
-	debug         bool
+	apiKey, JSKey, url string
+	debug              bool
 }
 
 //Set verbose debugging
@@ -205,7 +205,7 @@ func (r *Recurly) GetAccounts(params ...url.Values) (AccountList, error) {
 	return accountlist, nil
 }
 
-//Get a list of adjustments for an account
+//Get a list of adjustments for an account_code
 func (r *Recurly) GetAdjustments(account_code string, params ...url.Values) (AdjustmentList, error) {
 	adjlist := AdjustmentList{}
 	sendvars := url.Values{}
@@ -262,7 +262,7 @@ func (r *Recurly) GetCoupons(params ...url.Values) (CouponList, error) {
 	return cplist, nil
 }
 
-//Get a list of invoices for an account
+//Get a list of invoices for an account_code
 func (r *Recurly) GetAccountInvoices(account_code string, params ...url.Values) (AccountInvoiceList, error) {
 	invoicelist := AccountInvoiceList{}
 	sendvars := url.Values{}
@@ -347,7 +347,7 @@ func (r *Recurly) GetPlans(params ...url.Values) (PlanList, error) {
 	return planlist, nil
 }
 
-//Get a list of PlanAddOns
+//Get a list of add ons for a plan_code
 func (r *Recurly) GetPlanAddOns(plan_code string, params ...url.Values) (planaddonlist PlanAddOnList, e error) {
 	sendvars := url.Values{}
 	if params != nil {
@@ -401,7 +401,7 @@ func (r *Recurly) GetSubscriptions(params ...url.Values) (SubscriptionList, erro
 	return subs, nil
 }
 
-//Get a list of subscriptions for an account
+//Get a list of subscriptions for an account_code
 func (r *Recurly) GetAccountSubscriptions(account_code string, params ...url.Values) (AccountSubscriptionList, error) {
 	subs := AccountSubscriptionList{}
 	sendvars := url.Values{}
@@ -458,7 +458,7 @@ func (r *Recurly) GetTransactions(params ...url.Values) (TransactionList, error)
 	return subs, nil
 }
 
-//Get a list of transactions for an account
+//Get a list of transactions for an account_code
 func (r *Recurly) GetAccountTransactions(account_code string, params ...url.Values) (AccountTransactionList, error) {
 	subs := AccountTransactionList{}
 	sendvars := url.Values{}
@@ -487,7 +487,7 @@ func (r *Recurly) GetAccountTransactions(account_code string, params ...url.Valu
 	return subs, nil
 }
 
-//Get a single account by key
+//Get a single account by account_code
 func (r *Recurly) GetAccount(account_code string) (account Account, err error) {
 	account = r.NewAccount()
 	if resp, err := r.createRequest(ACCOUNTS+"/"+account_code, "GET", nil, nil); err == nil {
@@ -522,7 +522,7 @@ func (r *Recurly) GetAccount(account_code string) (account Account, err error) {
 	return account, nil
 }
 
-//Get a single account by key
+//Get a single adjustment by uuid
 func (r *Recurly) GetAdjustment(uuid string) (adj Adjustment, err error) {
 	adj = r.NewAdjustment()
 	if resp, err := r.createRequest(ADJUSTMENTS+"/"+uuid, "GET", nil, nil); err == nil {
@@ -556,7 +556,7 @@ func (r *Recurly) GetAdjustment(uuid string) (adj Adjustment, err error) {
 	return adj, nil
 }
 
-//Get a single account by key
+//Get a single coupon redemption by account_code
 func (r *Recurly) GetCouponRedemption(account_code string) (red Redemption, err error) {
 	red.r = r
 	red.AccountCode = account_code
@@ -591,7 +591,7 @@ func (r *Recurly) GetCouponRedemption(account_code string) (red Redemption, err 
 	return red, nil
 }
 
-//Get a single coupon
+//Get a single coupon by uuid
 func (r *Recurly) GetCoupon(uuid string) (coupon Coupon, err error) {
 	coupon = r.NewCoupon()
 	if resp, err := r.createRequest(COUPONS+"/"+uuid, "GET", nil, nil); err == nil {
@@ -659,7 +659,7 @@ func (r *Recurly) GetInvoice(uuid string) (invoice Invoice, err error) {
 	return invoice, nil
 }
 
-//Get a single plan by key
+//Get a single plan by plan_code
 func (r *Recurly) GetPlan(plan_code string) (plan Plan, err error) {
 	plan = r.NewPlan()
 	if resp, err := r.createRequest(PLANS+"/"+plan_code, "GET", nil, nil); err == nil {
@@ -693,7 +693,7 @@ func (r *Recurly) GetPlan(plan_code string) (plan Plan, err error) {
 	return plan, nil
 }
 
-//Get a single plan add on by key
+//Get a single plan add on by plan_code and add_on_code
 func (r *Recurly) GetPlanAddOn(plan_code, add_on_code string) (plan PlanAddOn, err error) {
 	plan = r.NewPlanAddOn()
 	if resp, err := r.createRequest(PLANS+"/"+plan_code+"/add_ons/"+add_on_code, "GET", nil, nil); err == nil {
@@ -727,10 +727,10 @@ func (r *Recurly) GetPlanAddOn(plan_code, add_on_code string) (plan PlanAddOn, e
 	return plan, nil
 }
 
-//Get a single subscription by key
-func (r *Recurly) GetSubscription(sub_id string) (sub Subscription, err error) {
+//Get a single subscription by uuid
+func (r *Recurly) GetSubscription(uuid string) (sub Subscription, err error) {
 	sub = r.NewSubscription()
-	if resp, err := r.createRequest(SUBSCRIPTIONS+"/"+sub_id, "GET", nil, nil); err == nil {
+	if resp, err := r.createRequest(SUBSCRIPTIONS+"/"+uuid, "GET", nil, nil); err == nil {
 		if resp.StatusCode == 200 {
 			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
 				if r.debug {
@@ -761,10 +761,10 @@ func (r *Recurly) GetSubscription(sub_id string) (sub Subscription, err error) {
 	return sub, nil
 }
 
-//Get a single transaction by key
-func (r *Recurly) GetTransaction(trans_id string) (tran Transaction, err error) {
+//Get a single transaction by uuid
+func (r *Recurly) GetTransaction(uuid string) (tran Transaction, err error) {
 	tran = r.NewTransaction()
-	if resp, err := r.createRequest(TRANSACTIONS+"/"+trans_id, "GET", nil, nil); err == nil {
+	if resp, err := r.createRequest(TRANSACTIONS+"/"+uuid, "GET", nil, nil); err == nil {
 		if resp.StatusCode == 200 {
 			if body, readerr := ioutil.ReadAll(resp.Body); readerr == nil {
 				if r.debug {
@@ -832,6 +832,7 @@ func (r *Recurly) NewPlan() (plan Plan) {
 	return
 }
 
+//Create a new plan Add On
 func (r *Recurly) NewPlanAddOn() (planAddOn PlanAddOn) {
 	planAddOn.r = r
 	planAddOn.UnitAmountInCents = new(CurrencyArray)
@@ -845,6 +846,7 @@ func (r *Recurly) NewSubscription() (subscription Subscription) {
 	return
 }
 
+//Create a new transaction
 func (r *Recurly) NewTransaction() (transaction Transaction) {
 	transaction.r = r
 	transaction.endpoint = TRANSACTIONS
@@ -865,7 +867,7 @@ func (r *Recurly) NewInvoice() (invoice Invoice) {
 	return
 }
 
-//Get a single accounts billing info by key
+//Get a single accounts billing info by account_code
 func (r *Recurly) GetBillingInfo(account_code string) (bi BillingInfo, err error) {
 	bi = r.NewBillingInfo()
 	if resp, err := r.createRequest(ACCOUNTS+"/"+account_code+"/"+BILLINGINFO, "GET", nil, nil); err == nil {
@@ -903,8 +905,7 @@ func (r *Recurly) GetBillingInfo(account_code string) (bi BillingInfo, err error
 //Create a request to Recurly and return that response object
 func (r *Recurly) createRequest(endpoint string, method string, params url.Values, msgbody []byte) (*http.Response, error) {
 	client := &http.Client{}
-
-	u, err := url.Parse(URL + endpoint)
+	u, err := url.Parse(r.url + endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -931,7 +932,7 @@ func (r *Recurly) createRequest(endpoint string, method string, params url.Value
 	return nil, nil
 }
 
-//process create request
+//process create request and return the updated interface
 func (r *Recurly) doCreateReturn(v, ret interface{}, endpoint string) (e error) {
 	if xmlstring, err := xml.MarshalIndent(v, "", "    "); err == nil {
 		xmlstring = []byte(xml.Header + string(xmlstring))
@@ -1112,7 +1113,6 @@ func (p *Paging) SetData(rb []byte, count string, links string) {
 	p.next = ""
 	p.prev = ""
 	for _, v := range strings.SplitN(links, ",", -1) {
-		println(v)
 		link := strings.SplitN(v, ";", -1)
 		link[0] = strings.Replace(link[0], "<", "", -1)
 		link[0] = strings.Replace(link[0], ">", "", -1)
@@ -1165,24 +1165,31 @@ func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) error 
 
 /*resource objects */
 
+//A struct to be embedded for plan_code
 type PlanCode struct {
 	XMLName  xml.Name `xml:"plan_codes"`
 	PlanCode []string `xml:"plan_code"`
 }
 
+//Listing of line items in a transaction
 type LineItems struct {
 	XMLName    xml.Name `xml:"line_items"`
 	Adjustment []Adjustment
 }
 
+//A struct to help with marshalling currency
 type CurrencyMarshalArray struct {
 	CurrencyList []*Currency `xml:""`
 }
 
+//A struct to help with marshalling currency
 type CurrencyArray struct {
 	CurrencyList []Currency `xml:"unit_amount_in_cents"`
 }
 
+//This helps you set an amount for a 3-Digit Currency.
+//This function will update the amount if the currency already
+//Exists in the CurrencyArray
 func (c *CurrencyArray) SetCurrency(currency string, amount int) {
 	if k := c.findCurrency(currency); k >= 0 {
 		//update instead of insert
@@ -1194,6 +1201,7 @@ func (c *CurrencyArray) SetCurrency(currency string, amount int) {
 	}
 }
 
+//find a currency
 func (c *CurrencyArray) findCurrency(currency string) (key int) {
 	if c == nil {
 		return -1
@@ -1206,6 +1214,7 @@ func (c *CurrencyArray) findCurrency(currency string) (key int) {
 	return -1
 }
 
+//Given a 3-Digit currency, return the value or an error if currency not found
 func (c *CurrencyArray) GetCurrency(currency string) (value int, e error) {
 	if k := c.findCurrency(currency); k >= 0 {
 		value, e = strconv.Atoi(c.CurrencyList[k].Amount)
@@ -1215,31 +1224,36 @@ func (c *CurrencyArray) GetCurrency(currency string) (value int, e error) {
 	return
 }
 
+//A Currency Struct
 type Currency struct {
 	XMLName xml.Name `xml:""`
 	Amount  string   `xml:",chardata"`
 }
 
 /* Stub */
+//A stub place holder
 type stub struct {
 	HREF     string `xml:"href,attr"`
 	endpoint string `xml:",-"`
 }
 
+//Get the code/uuid contained in the stub
 func (s stub) GetCode() (code string) {
 	code = "invalidcode"
 	if s.HREF != "" {
-		code = strings.Replace(s.HREF, URL, "", -1)
-		codes := strings.SplitN(code, "/", -1)
-		code = codes[1]
+		//code = strings.Replace(s.HREF, URL, "", -1)
+		codes := strings.SplitN(s.HREF, "/", -1)
+		code = codes[len(codes)-1]
 	}
 	return
 }
 
+//A recurly date object
 type RecurlyDate struct {
 	Raw string `xml:",innerxml"`
 }
 
+//Convert the date to RFC3339 format
 func (r RecurlyDate) GetDate() (time.Time, error) {
 	if r.Raw == "" {
 		return time.Now(), errors.New("Datetime is blank")

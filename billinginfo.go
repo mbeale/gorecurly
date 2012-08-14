@@ -2,6 +2,7 @@ package gorecurly
 
 import (
 	"encoding/xml"
+	"errors"
 )
 
 //Billing Info Stub struct
@@ -53,9 +54,18 @@ func (b *BillingInfo) Update() error {
 
 //Delete billing info for an account
 func (b *BillingInfo) Delete() error {
-	return b.r.doDelete(ACCOUNTS + "/" + b.AccountCode + "/" + BILLINGINFO)
+	var code string
+	code = b.AccountCode
+	if b.Account != nil {
+		code = b.Account.GetCode()
+	}
+	if code == "" {
+		return errors.New("No Account Code associated with this account")
+	}
+	return b.r.doDelete(ACCOUNTS + "/" + code + "/" + BILLINGINFO)
 }
 
+//This function will return the parent Account object
 func (b BillingInfo) GetAccount() (Account, error) {
 	return b.r.GetAccount(b.Account.GetCode())
 }

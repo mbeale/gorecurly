@@ -2,7 +2,6 @@ package gorecurly
 
 import (
 	"encoding/xml"
-	"net/url"
 	"time"
 )
 
@@ -32,6 +31,26 @@ func (a *Account) LoadBilling() error {
 	}
 	a.B = &bi
 	return err
+}
+
+//Return adjustments for this account
+func (a *Account) GetAdjustments() (AdjustmentList, error) {
+	return a.r.GetAdjustments(a.AccountCode)
+}
+
+//Return invoices for this account
+func (a *Account) GetInvoices() (AccountInvoiceList, error) {
+	return a.r.GetAccountInvoices(a.AccountCode)
+}
+
+//Return subscriptions for this account
+func (a *Account) GetSubscriptions() (AccountSubscriptionList, error) {
+	return a.r.GetAccountSubscriptions(a.AccountCode)
+}
+
+//Return transactions for this account
+func (a *Account) GetTransactions() (AccountTransactionList, error) {
+	return a.r.GetAccountTransactions(a.AccountCode)
 }
 
 //Create a new account and load updated fields
@@ -74,48 +93,3 @@ type AccountStub struct {
 	stub
 }
 
-//Account pager
-type AccountList struct {
-	Paging
-	r       *Recurly
-	XMLName xml.Name  `xml:"accounts"`
-	Account []Account `xml:"account"`
-}
-
-//Get next set of accounts
-func (a *AccountList) Next() bool {
-	if a.next != "" {
-		v := url.Values{}
-		v.Set("cursor", a.next)
-		v.Set("per_page", a.perPage)
-		*a, _ = a.r.GetAccounts(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Get previous set of accounts
-func (a *AccountList) Prev() bool {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("cursor", a.prev)
-		v.Set("per_page", a.perPage)
-		*a, _ = a.r.GetAccounts(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Go to start set of accounts
-func (a *AccountList) Start() bool {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("per_page", a.perPage)
-		*a, _ = a.r.GetAccounts(v)
-	} else {
-		return false
-	}
-	return true
-}
