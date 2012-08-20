@@ -81,6 +81,11 @@ func (a *Account) Close() error {
 	return a.r.doDelete(a.endpoint + "/" + a.AccountCode)
 }
 
+//Close an account
+func (a *Account) RemoveRedemption() error {
+	return a.r.doDelete(a.endpoint + "/" + a.AccountCode + "/redemption")
+}
+
 //Reopen a closed account
 func (a *Account) Reopen() error {
 	newaccount := new(Account)

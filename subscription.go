@@ -36,7 +36,7 @@ type Subscription struct {
 	TotalBillingCycles     string          `xml:"total_billing_cycles,omitempty"`
 }
 
-type SubscriptionCreate struct {
+type subscriptionCreate struct {
 	XMLName            xml.Name        `xml:"subscription"`
 	PlanCode           string          `xml:"plan_code,omitempty"`
 	CouponCode         string          `xml:"coupon_code,omitempty"`
@@ -91,7 +91,7 @@ func (s *Subscription) Create() error {
 	if err == nil {
 		t = &decode
 	}
-	sc := SubscriptionCreate{
+	sc := subscriptionCreate{
 		PlanCode:           s.PlanCode,
 		Account:            s.EmbedAccount,
 		Currency:           s.Currency,

@@ -13,6 +13,7 @@ package gorecurly
 //TODO: Maybe some examples fetching with goroutines
 //TODO: Add a variable to test if subscription is in trial
 //TODO: Custom function to calculate account balance
+//TODO: Discount in cents for coupons not working
 
 import (
 	"bytes"
@@ -360,6 +361,7 @@ func (r *Recurly) GetPlanAddOns(plan_code string, params ...url.Values) (planadd
 				planaddonlist.AddOns[k].r = r
 			}
 			planaddonlist.r = r
+			planaddonlist.PlanCode = plan_code
 			return
 		} else {
 			if r.debug {
@@ -1164,12 +1166,6 @@ func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) error 
 }
 
 /*resource objects */
-
-//A struct to be embedded for plan_code
-type PlanCode struct {
-	XMLName  xml.Name `xml:"plan_codes"`
-	PlanCode []string `xml:"plan_code"`
-}
 
 //Listing of line items in a transaction
 type LineItems struct {

@@ -244,7 +244,7 @@ func TestLive(t *testing.T) {
 	adj.Currency = c.Currency
 	adj.Quantity = 1
 	if err := adj.Create(); err != nil {
-		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc1.AccountCode, err.Error())
+		t.Fatalf("Create Adjustment for uuid:%s has failed: %s",adj.UUID, err.Error())
 	} else {
 		if d,err := r.GetAdjustment(adj.UUID); err == nil {
 			if err := d.Delete(); err == nil {
@@ -261,20 +261,247 @@ func TestLive(t *testing.T) {
 	//ADJUSTMENT LISTING TESTING
 	v = url.Values{}
 	v.Set("per_page","1")
-	if accounts, err :=r.GetAdjustments(acc1.AccountCode,v); err == nil {
+	if adjs, err :=r.GetAdjustments(acc1.AccountCode,v); err == nil {
 		//page through
-		for bcontinue := true; bcontinue; bcontinue = accounts.Next() {
+		for bcontinue := true; bcontinue; bcontinue = adjs.Next() {
 		}
 		//page backwards
-		if !accounts.Prev() {
+		if !adjs.Prev() {
 			t.Fatalf("Prev didn't work for adjustments")
 		}
 		//page start
-		if !accounts.Start() {
+		if !adjs.Start() {
 			t.Fatalf("Prev didn't work for adjustments")
 		}
 	} else {
 		t.Fatal(err.Error())
 	}
 	//END ADJUSTMENT LISTING TESTING
+
+	//PLAN TESTING
+	//Create 4 plans
+	//plan1
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	plan1 := r.NewPlan();
+	plan1.Name = "Some Plan"
+	plan1.PlanCode = fmt.Sprintf("%s%s","test-plan-",rvalue)
+	plan1.SetupFeeInCents.SetCurrency(c.Currency,3000)
+	plan1.UnitAmountInCents.SetCurrency(c.Currency,7000)
+	if err := plan1.Create(); err != nil {
+		t.Fatalf("Create Plan failed for plan_code:%s has failed: %s",plan1.PlanCode, err.Error())
+	} else {
+		if _,err := r.GetPlan(plan1.PlanCode); err != nil  {
+			t.Fatalf("Couldn't find plan :%s has failed: %s",plan1.PlanCode, err.Error())
+		}
+	}
+	//plan2
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	plan2 := r.NewPlan();
+	plan2.Name = "Some Plan"
+	plan2.PlanCode = fmt.Sprintf("%s%s","test-plan-",rvalue)
+	plan2.SetupFeeInCents.SetCurrency(c.Currency,3000)
+	plan2.UnitAmountInCents.SetCurrency(c.Currency,7000)
+	if err := plan2.Create(); err != nil {
+		t.Fatalf("Create Plan failed for plan_code:%s has failed: %s",plan2.PlanCode, err.Error())
+	} else {
+		if _,err := r.GetPlan(plan2.PlanCode); err != nil  {
+			t.Fatalf("Couldn't find plan :%s has failed: %s",plan2.PlanCode, err.Error())
+		}
+	}
+	//plan3
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	plan3 := r.NewPlan();
+	plan3.Name = "Some Plan"
+	plan3.PlanCode = fmt.Sprintf("%s%s","test-plan-",rvalue)
+	plan3.SetupFeeInCents.SetCurrency(c.Currency,3000)
+	plan3.UnitAmountInCents.SetCurrency(c.Currency,7000)
+	if err := plan3.Create(); err != nil {
+		t.Fatalf("Create Plan failed for plan_code:%s has failed: %s",plan3.PlanCode, err.Error())
+	} else {
+		if _,err := r.GetPlan(plan3.PlanCode); err != nil  {
+			t.Fatalf("Couldn't find plan :%s has failed: %s",plan3.PlanCode, err.Error())
+		}
+	}
+	//plan4
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	plan4 := r.NewPlan();
+	plan4.Name = "Some Plan"
+	plan4.PlanCode = fmt.Sprintf("%s%s","test-plan-",rvalue)
+	plan4.SetupFeeInCents.SetCurrency(c.Currency,3000)
+	plan4.UnitAmountInCents.SetCurrency(c.Currency,7000)
+	if err := plan4.Create(); err != nil {
+		t.Fatalf("Create Plan failed for plan_code:%s has failed: %s",plan4.PlanCode, err.Error())
+	} else {
+		if _,err := r.GetPlan(plan4.PlanCode); err != nil  {
+			t.Fatalf("Couldn't find plan :%s has failed: %s",plan4.PlanCode, err.Error())
+		}
+	}
+	//create plan error
+	plan5 := r.NewPlan();
+	if err := plan5.Create(); err == nil {
+		t.Fatalf("Plan creation should have failed")
+	}
+	//update plan
+	plan1.SetupFeeInCents.SetCurrency(c.Currency,0)
+	if err := plan1.Update(); err != nil {
+		t.Fatalf("Update Plan failed for plan_code:%s has failed: %s",plan1.PlanCode, err.Error())
+	}
+	//delete plan
+	if err := plan1.Delete(); err != nil {
+		t.Fatalf("Delete Plan failed for plan_code:%s has failed: %s",plan1.PlanCode, err.Error())
+	}
+
+	//END PLAN TESTING
+
+	//LIST PLAN TESTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if plans, err :=r.GetPlans(v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = plans.Next() {
+		}
+		//page backwards
+		if !plans.Prev() {
+			t.Fatalf("Prev didn't work for plans")
+		}
+		//page start
+		if !plans.Start() {
+			t.Fatalf("Prev didn't work for plans")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END LIST PLAN TESTING
+	
+	//COUPON TESTING
+	//create 4 coupons
+	PlanCodes := PlanCode{}
+	PlanCodes.PlanCode = append(PlanCodes.PlanCode,plan2.PlanCode, plan3.PlanCode)
+	cp1 := r.NewCoupon()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	cp1.CouponCode = fmt.Sprintf("%s%s","test-coupon-",rvalue)
+	cp1.Name = "Coupon for API"
+	cp1.DiscountType = "percent"
+	cp1.DiscountPercent = 10
+	cp1.SingleUse = false
+	cp1.MaxRedemptions = "10"
+	cp1.AppliesToAllPlans = false
+	cp1.PlanCodes = &PlanCodes
+	if err := cp1.Create(); err != nil {
+		t.Fatalf("Create Coupon failed for coupon_code:%s has failed: %s",cp1.CouponCode, err.Error())
+	} else {
+		if _,err := r.GetCoupon(cp1.CouponCode); err != nil  {
+			t.Fatalf("Couldn't find Coupon code:%s has failed: %s",cp1.CouponCode, err.Error())
+		}
+	}
+	cp2 := r.NewCoupon()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	cp2.CouponCode = fmt.Sprintf("%s%s","test-coupon-",rvalue)
+	cp2.Name = "Coupon for API"
+	cp2.DiscountType = "percent"
+	cp2.DiscountPercent = 10
+	cp2.SingleUse = false
+	cp2.MaxRedemptions = "10"
+	cp2.AppliesToAllPlans = false
+	cp2.PlanCodes = &PlanCodes
+	if err := cp2.Create(); err != nil {
+		t.Fatalf("Create Coupon failed for coupon_code:%s has failed: %s",cp2.CouponCode, err.Error())
+	} else {
+		if _,err := r.GetCoupon(cp2.CouponCode); err != nil  {
+			t.Fatalf("Couldn't find Coupon code:%s has failed: %s",cp2.CouponCode, err.Error())
+		}
+	}
+	cp3 := r.NewCoupon()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	cp3.CouponCode = fmt.Sprintf("%s%s","test-coupon-",rvalue)
+	cp3.Name = "Coupon for API"
+	cp3.DiscountType = "percent"
+	cp3.DiscountPercent = 10
+	cp3.SingleUse = false
+	cp3.MaxRedemptions = "10"
+	cp3.AppliesToAllPlans = false
+	cp3.PlanCodes = &PlanCodes
+	if err := cp3.Create(); err != nil {
+		t.Fatalf("Create Coupon failed for coupon_code:%s has failed: %s",cp3.CouponCode, err.Error())
+	} else {
+		if _,err := r.GetCoupon(cp3.CouponCode); err != nil  {
+			t.Fatalf("Couldn't find Coupon code:%s has failed: %s",cp3.CouponCode, err.Error())
+		}
+	}
+	cp4 := r.NewCoupon()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	cp4.CouponCode = fmt.Sprintf("%s%s","test-coupon-",rvalue)
+	cp4.Name = "Coupon for API"
+	cp4.DiscountType = "percent"
+	cp4.DiscountPercent = 10
+	cp4.SingleUse = false
+	cp4.MaxRedemptions = "10"
+	cp4.AppliesToAllPlans = false
+	cp4.PlanCodes = &PlanCodes
+	if err := cp4.Create(); err != nil {
+		t.Fatalf("Create Coupon failed for coupon_code:%s has failed: %s",cp4.CouponCode, err.Error())
+	} else {
+		if _,err := r.GetCoupon(cp4.CouponCode); err != nil  {
+			t.Fatalf("Couldn't find Coupon code:%s has failed: %s",cp4.CouponCode, err.Error())
+		}
+	}
+	//create invalid coupon
+	cp5 := r.NewCoupon()
+	if err := cp5.Create(); err == nil {
+		t.Fatalf("Coupon creation should have failed")
+	}
+	//deactivate coupon
+	if err := cp1.Deactivate(); err != nil {
+		t.Fatalf("Couldn't deactivate Coupon code:%s failed: %s",cp1.CouponCode, err.Error())
+	}
+	//END COUPON TESTING
+
+	//COUPON REDEMPTION TESTING
+	//redeem coupon 
+	if err := cp4.Redeem(acc1.AccountCode,c.Currency); err != nil {
+		t.Fatalf("Redemption failed for account_code:%s message:%s", acc1.AccountCode, err.Error())
+	} else {
+		//check if successful
+		if red, err := r.GetCouponRedemption(acc1.AccountCode); err != nil {
+			t.Fatalf("Error retreiving coupon redemption for account_code:%s err:%s",acc1.AccountCode,err.Error())
+		} else {
+			if red.Coupon.GetCode() != cp4.CouponCode {
+				t.Fatalf("Coupon codes do not match")
+			} else {
+				//remove redemption
+				if err = red.Delete();err != nil {
+					t.Fatalf("Deletion error:%s",err.Error())
+				}
+			}
+		}
+	}
+	//END COUPON REDEMPTION TESTING
+	
+	//COUPON LISTING TESTING 
+	v = url.Values{}
+	v.Set("per_page","1")
+	if coupons, err := r.GetCoupons(v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = coupons.Next() {
+		}
+		//page backwards
+		if !coupons.Prev() {
+			t.Fatalf("Prev didn't work for coupons")
+		}
+		//page start
+		if !coupons.Start() {
+			t.Fatalf("Prev didn't work for coupons")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END COUPON LISTING TESTING
 }
