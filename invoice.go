@@ -2,10 +2,11 @@ package gorecurly
 
 import (
 	"encoding/xml"
-	"net/url"
+	"errors"
 	"time"
 )
 
+//Invoice object
 type Invoice struct {
 	XMLName xml.Name `xml:"invoice"`
 	endpoint string
@@ -22,98 +23,37 @@ type Invoice struct {
 	Currency string `xml:"currency,omitempty"`
 	CreatedAt *time.Time `xml:"created_at,omitempty"`
 	LineItems []LineItems `xml:"line_items,omitempty"`
-	//Transactions Transaction `xml:"transactions,omitempty"`
+	//Transactions []Transaction `xml:"transactions,omitempty"`
 }
 
-type InvoiceList struct {
-	Paging
-	r *Recurly
-	XMLName xml.Name `xml:"invoices"`
-	Invoices []Invoice `xml:"invoice"`
+//Invoice any pending charges given an acount code
+func (i *Invoice) InvoicePendingCharges(account_code string) error {
+	_, err := i.r.createRequest(ACCOUNTS + "/" + account_code + "/invoices", "POST", nil, nil)
+	return err
 }
 
-
-//Get next set of Coupons
-func (i *InvoiceList) Next() (bool) {
-	if i.next != "" {
-		v := url.Values{}
-		v.Set("cursor",i.next)
-		v.Set("per_page",i.perPage)
-		*i,_ = i.r.GetInvoices(v)
-	} else {
-		return false
+//Mark an invoice as successfully paid
+func (i *Invoice) MarkSuccessful() error {
+	if i.UUID == "" {
+		return errors.New("Not a valid invoice")
 	}
-	return true
+	_, err := i.r.createRequest(INVOICES + "/" + i.InvoiceNumber + "/mark_successful", "PUT", nil, nil)
+	return err
 }
 
-//Get previous set of accounts
-func (i *InvoiceList) Prev() ( bool) {
-	if i.prev != "" {
-		v := url.Values{}
-		v.Set("cursor",i.prev)
-		v.Set("per_page",i.perPage)
-		*i,_ = i.r.GetInvoices(v)
-	} else {
-		return false
+//Mark an invoice as failed
+func (i *Invoice) MarkFailed() error {
+	if i.UUID == "" {
+		return errors.New("Not a valid invoice")
 	}
-	return true
-}
-
-//Go to start set of accounts
-func (i *InvoiceList) Start() ( bool) {
-	if i.prev != "" {
-		v := url.Values{}
-		v.Set("per_page",i.perPage)
-		*i,_ = i.r.GetInvoices(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-type AccountInvoiceList struct {
-	Paging
-	r *Recurly
-	XMLName xml.Name `xml:"invoices"`
-	AccountCode string `xml:"-"`
-	Invoices []Invoice `xml:"invoice"`
+	_, err := i.r.createRequest(INVOICES + "/" + i.InvoiceNumber + "/mark_failed", "PUT", nil, nil)
+	return err
 }
 
 
-//Get next set of Coupons
-func (a *AccountInvoiceList) Next() (bool) {
-	if a.next != "" {
-		v := url.Values{}
-		v.Set("cursor",a.next)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountInvoices(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
+//Listing of line items in a transaction
+type LineItems struct {
+	XMLName    xml.Name `xml:"line_items"`
+	Adjustment []Adjustment
 }
 
-//Get previous set of accounts
-func (a *AccountInvoiceList) Prev() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("cursor",a.prev)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountInvoices(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Go to start set of accounts
-func (a *AccountInvoiceList) Start() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountInvoices(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}

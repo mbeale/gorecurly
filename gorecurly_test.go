@@ -111,6 +111,25 @@ func TestLive(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
+	//create valid account with billing info for invoicing
+	acc4 := r.NewAccount()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	acc4.AccountCode = fmt.Sprintf("%s%s","test-invoice-account-",rvalue)
+	acc4.Email = "test-email-" + rvalue + "@example.com"
+	acc4.FirstName = "test-fname-" + rvalue
+	acc4.LastName = "test-last-" + rvalue
+	acc4.B = new(BillingInfo)
+	acc4.B.FirstName = "test-fname-" + rvalue
+	acc4.B.LastName = "test-last-" + rvalue
+	acc4.B.Number = "4111111111111111"
+	acc4.B.Month = 12
+	acc4.B.Year = 2015
+	acc4.B.VerificationValue = "123"
+	if err := acc4.Create(); err != nil {
+		t.Fatal(err.Error())
+	}
+
 	//get account
 	getacc, err := r.GetAccount(acc2.AccountCode)
 	if err != nil {
@@ -214,13 +233,13 @@ func TestLive(t *testing.T) {
 
 	//create credit
 	adj = r.NewAdjustment()
-	adj.AccountCode = acc1.AccountCode
+	adj.AccountCode = acc3.AccountCode
 	adj.Description = "some extra credit"
 	adj.UnitAmountInCents = -2000
 	adj.Currency = c.Currency
 	adj.Quantity = 1
 	if err := adj.Create(); err != nil {
-		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc1.AccountCode, err.Error())
+		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc3.AccountCode, err.Error())
 	} else {
 		if _,err := r.GetAdjustment(adj.UUID); err != nil {
 			t.Fatalf("Couldn't find Adjustment uuid:%s has failed: %s",adj.UUID, err.Error())
@@ -228,8 +247,8 @@ func TestLive(t *testing.T) {
 	}
 	//create invalid charge
 	adj = r.NewAdjustment()
-	adj.Description = "some extra credit"
-	adj.UnitAmountInCents = -2000
+	adj.Description = "some extra charge"
+	adj.UnitAmountInCents = 2000
 	adj.Currency = c.Currency
 	adj.Quantity = 1
 	if err := adj.Create(); err == nil {
@@ -247,10 +266,8 @@ func TestLive(t *testing.T) {
 		t.Fatalf("Create Adjustment for uuid:%s has failed: %s",adj.UUID, err.Error())
 	} else {
 		if d,err := r.GetAdjustment(adj.UUID); err == nil {
-			if err := d.Delete(); err == nil {
-				println("Success Delete:" + d.UUID)
-			} else {
-				println(err.Error())
+			if err := d.Delete(); err != nil {
+				t.Fatalf("Delete of adjustment failed :%s msg:%s",adj.UUID, err.Error())
 			}
 		} else {
 			t.Fatalf("Couldn't find Adjustment uuid:%s has failed: %s",adj.UUID, err.Error())
@@ -488,6 +505,7 @@ func TestLive(t *testing.T) {
 	//COUPON LISTING TESTING 
 	v = url.Values{}
 	v.Set("per_page","1")
+	v.Set("state","redeemable")
 	if coupons, err := r.GetCoupons(v); err == nil {
 		//page through
 		for bcontinue := true; bcontinue; bcontinue = coupons.Next() {
@@ -504,4 +522,134 @@ func TestLive(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	//END COUPON LISTING TESTING
+
+	//INVOICE TESTING
+	//generate an invoice from pending charges on account without billing info *2
+	adj = r.NewAdjustment()
+	adj.AccountCode = acc1.AccountCode
+	adj.Description = "some extra charge"
+	adj.UnitAmountInCents = 2000
+	adj.Currency = c.Currency
+	adj.Quantity = 1
+	if err := adj.Create(); err != nil {
+		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc1.AccountCode, err.Error())
+	}
+	inv4 := r.NewInvoice()
+	if err := inv4.InvoicePendingCharges(acc1.AccountCode); err != nil {
+		t.Fatalf("Invoice Pending charges failed for account_code:%s message:%s", acc1.AccountCode, err.Error())
+	}
+	adj = r.NewAdjustment()
+	adj.AccountCode = acc1.AccountCode
+	adj.Description = "some extra charge"
+	adj.UnitAmountInCents = 2000
+	adj.Currency = c.Currency
+	adj.Quantity = 1
+	if err := adj.Create(); err != nil {
+		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc1.AccountCode, err.Error())
+	}
+	inv5 := r.NewInvoice()
+	if err := inv5.InvoicePendingCharges(acc1.AccountCode); err != nil {
+		t.Fatalf("Invoice Pending charges failed for account_code:%s message:%s", acc1.AccountCode, err.Error())
+	}
+	///generate an invoice from pending charges 3 times
+	//generate inv1
+	adj = r.NewAdjustment()
+	adj.AccountCode = acc4.AccountCode
+	adj.Description = "some extra charge"
+	adj.UnitAmountInCents = 2000
+	adj.Currency = c.Currency
+	adj.Quantity = 1
+	if err := adj.Create(); err != nil {
+		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc4.AccountCode, err.Error())
+	}
+	inv1 := r.NewInvoice()
+	if err := inv1.InvoicePendingCharges(acc4.AccountCode); err != nil {
+		t.Fatalf("Invoice Pending charges failed for account_code:%s message:%s", acc4.AccountCode, err.Error())
+	}
+	//create charge
+	adj = r.NewAdjustment()
+	adj.AccountCode = acc4.AccountCode
+	adj.Description = "some extra charge"
+	adj.UnitAmountInCents = 2000
+	adj.Currency = c.Currency
+	adj.Quantity = 1
+	if err := adj.Create(); err != nil {
+		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc4.AccountCode, err.Error())
+	}
+	inv2 := r.NewInvoice()
+	if err := inv2.InvoicePendingCharges(acc4.AccountCode); err != nil {
+		t.Fatalf("Invoice Pending charges failed for account_code:%s message:%s", acc4.AccountCode, err.Error())
+	}
+	adj = r.NewAdjustment()
+	adj.AccountCode = acc4.AccountCode
+	adj.Description = "some extra charge"
+	adj.UnitAmountInCents = 2000
+	adj.Currency = c.Currency
+	adj.Quantity = 1
+	if err := adj.Create(); err != nil {
+		t.Fatalf("Create Adjustment for account_code:%s has failed: %s",acc4.AccountCode, err.Error())
+	}
+	inv3 := r.NewInvoice()
+	if err := inv3.InvoicePendingCharges(acc4.AccountCode); err != nil {
+		t.Fatalf("Invoice Pending charges failed for account_code:%s message:%s", acc4.AccountCode, err.Error())
+	}
+	//get invoice for acc1
+	if invoices, err := r.GetAccountInvoices(acc1.AccountCode,v); err == nil {
+		marksuccesful := false
+		for _, invoice := range invoices.Invoices {
+			if marksuccesful {
+				//mark invoice as failed
+				if err = invoice.MarkFailed(); err != nil {
+					t.Fatalf("Marking failed failed inv num:%s error:%s", invoice.InvoiceNumber, err.Error())
+				}
+			} else {
+				//mark invoice as successful
+				marksuccesful = true
+				if err = invoice.MarkSuccessful(); err != nil {
+					t.Fatalf("Marking successful failed inv num:%s error:%s", invoice.InvoiceNumber, err.Error())
+				}
+			}
+		}
+	}
+	//END INVOICE TESTING
+
+	//ACCOUNT INVOICE LISTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if invoices, err := r.GetAccountInvoices(acc4.AccountCode,v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = invoices.Next() {
+		}
+		//page backwards
+		if !invoices.Prev() {
+			t.Fatalf("Prev didn't work for account invoices")
+		}
+		//page start
+		if !invoices.Start() {
+			t.Fatalf("Prev didn't work for account invoices")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END ACCOUNT INVOICE LISTING
+
+	//INVOICE LISTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if invoices, err := r.GetInvoices(v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = invoices.Next() {
+		}
+		//page backwards
+		if !invoices.Prev() {
+			t.Fatalf("Prev didn't work for invoices")
+		}
+		//page start
+		if !invoices.Start() {
+			t.Fatalf("Prev didn't work for invoices")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END INVOICE LISTING
 }

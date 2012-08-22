@@ -1,8 +1,11 @@
-//Main GoRecurly Package
+//Recurly Client Library for go
+//Works with version 2 of API only
+
 package gorecurly
 
 //TODO: Do all tests, do with mock server, need to fix URL so that it can be overriden
 //TODO: Check all comments when finished 
+//TODO: Change all paging to new request params 
 //TODO: Check that state is working with lists
 //TODO: Introduce stubs for all resources
 //TODO: PDF Invoice
@@ -31,7 +34,7 @@ import (
 
 const (
 	URL               = "https://api.recurly.com/v2/"
-	libversion        = "0.1"
+	libversion        = "0.4"
 	libname           = "Recurly-Go"
 	ACCOUNTS          = "accounts"
 	ADJUSTMENTS       = "adjustments"
@@ -68,7 +71,7 @@ type Pager interface {
 	getRawBody() []byte
 }
 
-//recurly errors
+//Recurly errors
 var Error400 = errors.New("The request was invalid or could not be understood by the server. Resubmitting the request will likely result in the same error.")
 var Error401 = errors.New("Your API key is missing or invalid.")
 var Error402 = errors.New("Your Recurly account is in production mode but is not in good standing. Please pay any outstanding invoices.")
@@ -1101,6 +1104,7 @@ func (r *Recurly) doDelete(endpoint string) error {
 type Paging struct {
 	rawBody                    []byte
 	count, next, prev, perPage string
+	UrlVars url.Values
 }
 
 //Return the rawBody Var
@@ -1108,12 +1112,37 @@ func (p Paging) getRawBody() []byte {
 	return p.rawBody
 }
 
+//Return params for next request
+func (p *Paging) NextParams() url.Values{
+	v := p.UrlVars
+	v.Set("cursor", p.next)
+	v.Set("per_page", p.perPage)
+	return v
+}
+
+//Return params for next request
+func (p *Paging) StartParams() url.Values{
+	v := p.UrlVars
+	v.Del("cursor")
+	v.Set("per_page", p.perPage)
+	return v
+}
+
+//Return params for next request
+func (p *Paging) PrevParams() url.Values{
+	v := p.UrlVars
+	v.Set("cursor", p.prev)
+	v.Set("per_page", p.perPage)
+	return v
+}
+
 //Set header data for paging
-func (p *Paging) SetData(rb []byte, count string, links string) {
+func (p *Paging) SetData(rb []byte, count string, links string, params url.Values) {
 	p.rawBody = rb
 	p.count = count
 	p.next = ""
 	p.prev = ""
+	p.UrlVars = params
 	for _, v := range strings.SplitN(links, ",", -1) {
 		link := strings.SplitN(v, ";", -1)
 		link[0] = strings.Replace(link[0], "<", "", -1)
@@ -1145,9 +1174,9 @@ func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) error 
 					fmt.Printf("Content-Length:%v\n", resp.ContentLength)
 				}
 				if x := len(resp.Header["Link"]); x > 0 {
-					p.SetData(body, resp.Header["X-Records"][0], resp.Header["Link"][0])
+					p.SetData(body, resp.Header["X-Records"][0], resp.Header["Link"][0],params)
 				} else {
-					p.SetData(body, resp.Header["X-Records"][0], "")
+					p.SetData(body, resp.Header["X-Records"][0], "",params)
 				}
 				//everything went fine
 				return nil
@@ -1166,12 +1195,6 @@ func (p *Paging) initList(endpoint string, params url.Values, r *Recurly) error 
 }
 
 /*resource objects */
-
-//Listing of line items in a transaction
-type LineItems struct {
-	XMLName    xml.Name `xml:"line_items"`
-	Adjustment []Adjustment
-}
 
 //A struct to help with marshalling currency
 type CurrencyMarshalArray struct {
