@@ -184,11 +184,7 @@ func (r *Recurly) EnableDebug() {
 //Get a list of accounts
 func (r *Recurly) GetAccounts(params ...url.Values) (AccountList, error) {
 	accountlist := AccountList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		accountlist.perPage = sendvars.Get("per_page")
-	}
+	sendvars := accountlist.initParams(params)
 	if err := accountlist.initList(ACCOUNTS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(accountlist.getRawBody(), &accountlist); xmlerr == nil {
 			for k, _ := range accountlist.Account {
@@ -212,11 +208,7 @@ func (r *Recurly) GetAccounts(params ...url.Values) (AccountList, error) {
 //Get a list of adjustments for an account_code
 func (r *Recurly) GetAdjustments(account_code string, params ...url.Values) (AdjustmentList, error) {
 	adjlist := AdjustmentList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		adjlist.perPage = sendvars.Get("per_page")
-	}
+	sendvars := adjlist.initParams(params)
 	if err := adjlist.initList(ACCOUNTS+"/"+account_code+"/"+ADJUSTMENTS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(adjlist.getRawBody(), &adjlist); xmlerr == nil {
 			for k, _ := range adjlist.Adjustments {
@@ -241,11 +233,7 @@ func (r *Recurly) GetAdjustments(account_code string, params ...url.Values) (Adj
 //Get a list of coupons
 func (r *Recurly) GetCoupons(params ...url.Values) (CouponList, error) {
 	cplist := CouponList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		cplist.perPage = sendvars.Get("per_page")
-	}
+	sendvars := cplist.initParams(params)
 	if err := cplist.initList(COUPONS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(cplist.getRawBody(), &cplist); xmlerr == nil {
 			for k, _ := range cplist.Coupons {
@@ -269,11 +257,7 @@ func (r *Recurly) GetCoupons(params ...url.Values) (CouponList, error) {
 //Get a list of invoices for an account_code
 func (r *Recurly) GetAccountInvoices(account_code string, params ...url.Values) (AccountInvoiceList, error) {
 	invoicelist := AccountInvoiceList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		invoicelist.perPage = sendvars.Get("per_page")
-	}
+	sendvars := invoicelist.initParams(params)
 	if err := invoicelist.initList(ACCOUNTS+"/"+account_code+"/"+INVOICES, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(invoicelist.getRawBody(), &invoicelist); xmlerr == nil {
 			for k, _ := range invoicelist.Invoices {
@@ -298,11 +282,7 @@ func (r *Recurly) GetAccountInvoices(account_code string, params ...url.Values) 
 //Get a list of invoices
 func (r *Recurly) GetInvoices(params ...url.Values) (InvoiceList, error) {
 	invoicelist := InvoiceList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		invoicelist.perPage = sendvars.Get("per_page")
-	}
+	sendvars := invoicelist.initParams(params)
 	if err := invoicelist.initList(INVOICES, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(invoicelist.getRawBody(), &invoicelist); xmlerr == nil {
 			for k, _ := range invoicelist.Invoices {
@@ -326,11 +306,7 @@ func (r *Recurly) GetInvoices(params ...url.Values) (InvoiceList, error) {
 //Get a list of Plans
 func (r *Recurly) GetPlans(params ...url.Values) (PlanList, error) {
 	planlist := PlanList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		planlist.perPage = sendvars.Get("per_page")
-	}
+	sendvars := planlist.initParams(params)
 	if err := planlist.initList(PLANS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(planlist.getRawBody(), &planlist); xmlerr == nil {
 			for k, _ := range planlist.Plans {
@@ -353,11 +329,7 @@ func (r *Recurly) GetPlans(params ...url.Values) (PlanList, error) {
 
 //Get a list of add ons for a plan_code
 func (r *Recurly) GetPlanAddOns(plan_code string, params ...url.Values) (planaddonlist PlanAddOnList, e error) {
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		planaddonlist.perPage = sendvars.Get("per_page")
-	}
+	sendvars := planaddonlist.initParams(params)
 	if err := planaddonlist.initList(PLANS+"/"+plan_code+"/add_ons", sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(planaddonlist.getRawBody(), &planaddonlist); xmlerr == nil {
 			for k, _ := range planaddonlist.AddOns {
@@ -381,11 +353,7 @@ func (r *Recurly) GetPlanAddOns(plan_code string, params ...url.Values) (planadd
 //Get a list of subscriptions
 func (r *Recurly) GetSubscriptions(params ...url.Values) (SubscriptionList, error) {
 	subs := SubscriptionList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		subs.perPage = sendvars.Get("per_page")
-	}
+	sendvars := subs.initParams(params)
 	if err := subs.initList(SUBSCRIPTIONS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(subs.getRawBody(), &subs); xmlerr == nil {
 			for k, _ := range subs.Subscriptions {
@@ -409,11 +377,7 @@ func (r *Recurly) GetSubscriptions(params ...url.Values) (SubscriptionList, erro
 //Get a list of subscriptions for an account_code
 func (r *Recurly) GetAccountSubscriptions(account_code string, params ...url.Values) (AccountSubscriptionList, error) {
 	subs := AccountSubscriptionList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		subs.perPage = sendvars.Get("per_page")
-	}
+	sendvars := subs.initParams(params)
 	if err := subs.initList(ACCOUNTS+"/"+account_code+"/"+SUBSCRIPTIONS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(subs.getRawBody(), &subs); xmlerr == nil {
 			for k, _ := range subs.Subscriptions {
@@ -438,11 +402,7 @@ func (r *Recurly) GetAccountSubscriptions(account_code string, params ...url.Val
 //Get a list of transactions
 func (r *Recurly) GetTransactions(params ...url.Values) (TransactionList, error) {
 	subs := TransactionList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		subs.perPage = sendvars.Get("per_page")
-	}
+	sendvars := subs.initParams(params)
 	if err := subs.initList(TRANSACTIONS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(subs.getRawBody(), &subs); xmlerr == nil {
 			for k, _ := range subs.Transactions {
@@ -466,11 +426,7 @@ func (r *Recurly) GetTransactions(params ...url.Values) (TransactionList, error)
 //Get a list of transactions for an account_code
 func (r *Recurly) GetAccountTransactions(account_code string, params ...url.Values) (AccountTransactionList, error) {
 	subs := AccountTransactionList{}
-	sendvars := url.Values{}
-	if params != nil {
-		sendvars = params[0]
-		subs.perPage = sendvars.Get("per_page")
-	}
+	sendvars := subs.initParams(params)
 	if err := subs.initList(ACCOUNTS+"/"+account_code+"/"+TRANSACTIONS, sendvars, r); err == nil {
 		if xmlerr := xml.Unmarshal(subs.getRawBody(), &subs); xmlerr == nil {
 			for k, _ := range subs.Transactions {
@@ -1110,6 +1066,17 @@ type Paging struct {
 //Return the rawBody Var
 func (p Paging) getRawBody() []byte {
 	return p.rawBody
+}
+func (p *Paging) initParams(params []url.Values) (sendvars url.Values){
+	if params != nil {
+		sendvars = params[0]
+		if sendvars.Get("per_page") == "" {
+			p.perPage = "50"
+		} else {
+			p.perPage = sendvars.Get("per_page")
+		}
+	}
+	return
 }
 
 //Return params for next request

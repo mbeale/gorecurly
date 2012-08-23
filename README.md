@@ -61,14 +61,14 @@ after you have cleared out the test data and never test against a production acc
 TODO
 ====
 
-PDF Invoice
-Recurly.js signing
-transparent post (probably not)
-Option to add no auth to header "Recurly-Skip-Authorization: true"
-Maybe some examples fetching with goroutines
-Add a variable to test if subscription is in trial
-Custom function to calculate account balance
-Discount in cents for coupons not working
+* PDF Invoice
+* Recurly.js signing
+* transparent post (probably not)
+* Option to add no auth to header "Recurly-Skip-Authorization: true"
+* Maybe some examples fetching with goroutines
+* Add a variable to test if subscription is in trial
+* Custom function to calculate account balance
+* Discount in cents for coupons not working
 
 Recurly.com
 ===========

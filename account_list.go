@@ -2,7 +2,6 @@ package gorecurly
 
 import (
 	"encoding/xml"
-	"net/url"
 )
 
 //Account pager
@@ -16,10 +15,7 @@ type AccountList struct {
 //Get next set of accounts, will return false if no more accounts
 func (a *AccountList) Next() bool {
 	if a.next != "" {
-		v := url.Values{}
-		v.Set("cursor", a.next)
-		v.Set("per_page", a.perPage)
-		*a, _ = a.r.GetAccounts(v)
+		*a, _ = a.r.GetAccounts(a.NextParams())
 	} else {
 		return false
 	}
@@ -29,10 +25,7 @@ func (a *AccountList) Next() bool {
 //Get previous set of accounts, will return false if no previous accounts
 func (a *AccountList) Prev() bool {
 	if a.prev != "" {
-		v := url.Values{}
-		v.Set("cursor", a.prev)
-		v.Set("per_page", a.perPage)
-		*a, _ = a.r.GetAccounts(v)
+		*a, _ = a.r.GetAccounts(a.PrevParams())
 	} else {
 		return false
 	}
@@ -42,9 +35,7 @@ func (a *AccountList) Prev() bool {
 //Go to start set of accounts, returns false if no valid records
 func (a *AccountList) Start() bool {
 	if a.prev != "" {
-		v := url.Values{}
-		v.Set("per_page", a.perPage)
-		*a, _ = a.r.GetAccounts(v)
+		*a, _ = a.r.GetAccounts(a.StartParams())
 	} else {
 		return false
 	}

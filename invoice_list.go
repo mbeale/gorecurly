@@ -2,7 +2,6 @@ package gorecurly
 
 import (
 	"encoding/xml"
-	"net/url"
 )
 
 //The invoice list struct
@@ -17,10 +16,7 @@ type InvoiceList struct {
 //Get next set of invoices
 func (i *InvoiceList) Next() (bool) {
 	if i.next != "" {
-		v := url.Values{}
-		v.Set("cursor",i.next)
-		v.Set("per_page",i.perPage)
-		*i,_ = i.r.GetInvoices(v)
+		*i,_ = i.r.GetInvoices(i.NextParams())
 	} else {
 		return false
 	}
@@ -30,10 +26,7 @@ func (i *InvoiceList) Next() (bool) {
 //Get previous set of invoices
 func (i *InvoiceList) Prev() ( bool) {
 	if i.prev != "" {
-		v := url.Values{}
-		v.Set("cursor",i.prev)
-		v.Set("per_page",i.perPage)
-		*i,_ = i.r.GetInvoices(v)
+		*i,_ = i.r.GetInvoices(i.PrevParams())
 	} else {
 		return false
 	}
@@ -43,9 +36,7 @@ func (i *InvoiceList) Prev() ( bool) {
 //Go to start set of invoices
 func (i *InvoiceList) Start() ( bool) {
 	if i.prev != "" {
-		v := url.Values{}
-		v.Set("per_page",i.perPage)
-		*i,_ = i.r.GetInvoices(v)
+		*i,_ = i.r.GetInvoices(i.StartParams())
 	} else {
 		return false
 	}
@@ -62,10 +53,7 @@ type AccountInvoiceList struct {
 //Get next set of invoices by account
 func (a *AccountInvoiceList) Next() (bool) {
 	if a.next != "" {
-		v := url.Values{}
-		v.Set("cursor",a.next)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountInvoices(a.AccountCode,v)
+		*a,_ = a.r.GetAccountInvoices(a.AccountCode,a.NextParams())
 	} else {
 		return false
 	}
@@ -75,10 +63,7 @@ func (a *AccountInvoiceList) Next() (bool) {
 //Get previous set of invoices by account
 func (a *AccountInvoiceList) Prev() ( bool) {
 	if a.prev != "" {
-		v := url.Values{}
-		v.Set("cursor",a.prev)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountInvoices(a.AccountCode,v)
+		*a,_ = a.r.GetAccountInvoices(a.AccountCode,a.PrevParams())
 	} else {
 		return false
 	}
@@ -88,9 +73,7 @@ func (a *AccountInvoiceList) Prev() ( bool) {
 //Go to start set of invoices by account
 func (a *AccountInvoiceList) Start() ( bool) {
 	if a.prev != "" {
-		v := url.Values{}
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountInvoices(a.AccountCode,v)
+		*a,_ = a.r.GetAccountInvoices(a.AccountCode,a.StartParams())
 	} else {
 		return false
 	}
