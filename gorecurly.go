@@ -16,7 +16,9 @@ package gorecurly
 //TODO: Maybe some examples fetching with goroutines
 //TODO: Add a variable to test if subscription is in trial
 //TODO: Custom function to calculate account balance
+//TODO: Custom function to calculate next billing amt
 //TODO: Discount in cents for coupons not working
+//TODO: Handle push notifications
 
 import (
 	"bytes"

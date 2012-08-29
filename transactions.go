@@ -3,10 +3,10 @@ package gorecurly
 import (
 	"encoding/xml"
 	"fmt"
-	"net/url"
 	"time"
 )
 
+//Transaction Object
 type Transaction struct {
 	XMLName  xml.Name `xml:"transaction"`
 	endpoint string
@@ -34,13 +34,14 @@ type Transaction struct {
 	CreatedAt *time.Time `xml:"created_at,omitempty"`
 }
 
-type TransactionCreate struct {
+type transactionCreate struct {
 	XMLName       xml.Name `xml:"transaction"`
 	Account       *Account `xml:"account,omitempty"`
 	AmountInCents int      `xml:"amount_in_cents,omitempty"`
 	Currency      string   `xml:"currency,omitempty"`
 }
 
+//Attach an existing account to a transaction
 func (t *Transaction) AttachExistingAccount(a Account) (e error) {
 	if t.UUID != "" {
 		return RecurlyError{statusCode: 400, Description: "Subscription Already in Use and can't attach another account to it"}
@@ -49,6 +50,8 @@ func (t *Transaction) AttachExistingAccount(a Account) (e error) {
 	t.EmbedAccount.AccountCode = a.AccountCode
 	return
 }
+
+//Attach a new account to a transaction
 func (t *Transaction) AttachAccount(a Account) (e error) {
 	if t.UUID != "" {
 		return RecurlyError{statusCode: 400, Description: "Subscription Already in Use and can't attach another account to it"}
@@ -62,11 +65,12 @@ func (t *Transaction) AttachAccount(a Account) (e error) {
 	return
 }
 
+//Create a transaction
 func (t *Transaction) Create() error {
 	if t.UUID != "" {
 		return RecurlyError{statusCode: 400, Description: "Subscription Already in Use"}
 	}
-	tc := TransactionCreate{
+	tc := transactionCreate{
 		Account:       t.EmbedAccount,
 		Currency:      t.Currency,
 		AmountInCents: t.AmountInCents,
@@ -79,7 +83,7 @@ func (t *Transaction) Create() error {
 	return nil
 }
 
-//Refund a transaction 
+//Refund a partial amount from a transaction 
 func (t *Transaction) Refund(amount int) error {
 	return t.r.doDelete(t.endpoint + "/" + t.UUID + "?amount_in_cents=" + fmt.Sprintf("%v",amount))
 }
@@ -88,95 +92,3 @@ func (t *Transaction) RefundAll() error {
 	return t.r.doDelete(t.endpoint + "/" + t.UUID)
 }
 
-//Transaction pager
-type TransactionList struct {
-	Paging
-	r       *Recurly
-	XMLName xml.Name  `xml:"transactions"`
-	Transactions []Transaction `xml:"transaction"`
-}
-
-//Get next set of transactions
-func (t *TransactionList) Next() bool {
-	if t.next != "" {
-		v := url.Values{}
-		v.Set("cursor", t.next)
-		v.Set("per_page", t.perPage)
-		*t, _ = t.r.GetTransactions(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Get previous set of transactions
-func (t *TransactionList) Prev() bool {
-	if t.prev != "" {
-		v := url.Values{}
-		v.Set("cursor", t.prev)
-		v.Set("per_page", t.perPage)
-		*t, _ = t.r.GetTransactions(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Go to start set of transactions
-func (t *TransactionList) Start() bool {
-	if t.prev != "" {
-		v := url.Values{}
-		v.Set("per_page", t.perPage)
-		*t, _ = t.r.GetTransactions(v)
-	} else {
-		return false
-	}
-	return true
-}
-
-type AccountTransactionList struct {
-	Paging
-	r *Recurly
-	XMLName xml.Name `xml:"transactions"`
-	AccountCode string `xml:"-"`
-	Transactions []Transaction `xml:"transaction"`
-}
-
-
-//Get next set of transactions
-func (a *AccountTransactionList) Next() (bool) {
-	if a.next != "" {
-		v := url.Values{}
-		v.Set("cursor",a.next)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountTransactions(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Get previous set of transactions
-func (a *AccountTransactionList) Prev() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("cursor",a.prev)
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountTransactions(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}
-
-//Go to start set of transactions
-func (a *AccountTransactionList) Start() ( bool) {
-	if a.prev != "" {
-		v := url.Values{}
-		v.Set("per_page",a.perPage)
-		*a,_ = a.r.GetAccountTransactions(a.AccountCode,v)
-	} else {
-		return false
-	}
-	return true
-}

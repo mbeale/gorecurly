@@ -16,6 +16,7 @@ type Config struct {
 	APIKey string `xml:"apikey"`
 	JSKey string `xml:"jskey"`
 	Currency string `xml:"currency"`
+	Future string `xml:"futuredate"`
 }
 
 func (c *Config) LoadConfig() error {
@@ -130,6 +131,25 @@ func TestLive(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
+	//create valid account with billing info
+	acc5 := r.NewAccount()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	acc5.AccountCode = fmt.Sprintf("%s%s","test-account-",rvalue)
+	acc5.Email = "test-email-" + rvalue + "@example.com"
+	acc5.FirstName = "test-fname-" + rvalue
+	acc5.LastName = "test-last-" + rvalue
+	acc5.B = new(BillingInfo)
+	acc5.B.FirstName = "test-fname-" + rvalue
+	acc5.B.LastName = "test-last-" + rvalue
+	acc5.B.Number = "4111111111111111"
+	acc5.B.Month = 12
+	acc5.B.Year = 2015
+	acc5.B.VerificationValue = "123"
+	if err := acc5.Create(); err != nil {
+		t.Fatal(err.Error())
+	}
+
 	//get account
 	getacc, err := r.GetAccount(acc2.AccountCode)
 	if err != nil {
@@ -164,6 +184,7 @@ func TestLive(t *testing.T) {
 	//list accounts
 	v := url.Values{}
 	v.Set("per_page","2")
+	v.Set("state","active")
 	if accounts, err :=r.GetAccounts(v); err == nil {
 		//page through
 		for bcontinue := true; bcontinue; bcontinue = accounts.Next() {
@@ -393,6 +414,81 @@ func TestLive(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	//END LIST PLAN TESTING
+	//PLAN ADD ON TESTING
+
+	//create 4 add ons
+	addon1 := r.NewPlanAddOn()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	addon1.Name = "Some updated addon"
+	addon1.AddOnCode = fmt.Sprintf("%s%s","test-addon-",rvalue)
+	addon1.UnitAmountInCents.SetCurrency(c.Currency,400)
+	if err := addon1.Create(plan3.PlanCode); err != nil {
+		t.Fatalf("Create add on failed for plan_code:%s addoncode:%s has failed: %s",plan3.PlanCode, err.Error())
+	}
+
+	addon2 := r.NewPlanAddOn()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	addon2.Name = "Some updated addon"
+	addon2.AddOnCode = fmt.Sprintf("%s%s","test-addon-",rvalue)
+	addon2.UnitAmountInCents.SetCurrency(c.Currency,400)
+	if err := addon2.Create(plan3.PlanCode); err != nil {
+		t.Fatalf("Create add on failed for plan_code:%s addoncode:%s has failed: %s",plan3.PlanCode, err.Error())
+	}
+
+	addon3 := r.NewPlanAddOn()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	addon3.Name = "Some updated addon"
+	addon3.AddOnCode = fmt.Sprintf("%s%s","test-addon-",rvalue)
+	addon3.UnitAmountInCents.SetCurrency(c.Currency,400)
+	if err := addon3.Create(plan3.PlanCode); err != nil {
+		t.Fatalf("Create add on failed for plan_code:%s addoncode:%s has failed: %s",plan3.PlanCode, err.Error())
+	}
+
+	addon4 := r.NewPlanAddOn()
+	rand.Seed(int64(time.Now().Nanosecond()))
+	rvalue = fmt.Sprintf("%v",rand.Intn(400000))
+	addon4.Name = "Some updated addon"
+	addon4.AddOnCode = fmt.Sprintf("%s%s","test-addon-",rvalue)
+	addon4.UnitAmountInCents.SetCurrency(c.Currency,400)
+	if err := addon4.Create(plan3.PlanCode); err != nil {
+		t.Fatalf("Create add on failed for plan_code:%s addoncode:%s has failed: %s",plan3.PlanCode, err.Error())
+	}
+
+	//update addon
+	addon1.UnitAmountInCents.SetCurrency(c.Currency,800)
+	addon1.Update()
+	if amt, _ := addon1.UnitAmountInCents.GetCurrency(c.Currency);amt != 800 {
+		t.Fatalf("Update not successful for plan_code:%s add_on:%s", plan3.PlanCode, addon1.AddOnCode)
+	}
+	//delete add on
+	if err := addon4.Delete(); err != nil {
+		t.Fatalf("Delete Addon failed for plan_code:%s , addoncode: %s has failed: %s",plan3.PlanCode,addon4.AddOnCode, err.Error())
+	}
+
+	//END PLAN ADD ON TESTING
+
+	//PLAN ADD ON LISTING TESTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if addons, err :=r.GetPlanAddOns(plan3.PlanCode,v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = addons.Next() {
+		}
+		//page backwards
+		if !addons.Prev() {
+			t.Fatalf("Prev didn't work for addons")
+		}
+		//page start
+		if !addons.Start() {
+			t.Fatalf("Prev didn't work for addons")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END PLAN ADD ON LISTING TESTING
 	
 	//COUPON TESTING
 	//create 4 coupons
@@ -652,4 +748,228 @@ func TestLive(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	//END INVOICE LISTING
+
+	//SUBSCRIPTION TESTING
+	//create 4 subs
+	sub1 := r.NewSubscription()
+	sub1.PlanCode = plan3.PlanCode
+	sub1.Currency = c.Currency
+	sub1.AttachExistingAccount(acc4)
+	if err := sub1.Create(); err != nil {
+		t.Fatalf("Subscription failed to be created with account:%s error:%s", acc4.AccountCode,err)
+	}
+
+	sub2 := r.NewSubscription()
+	sub2.PlanCode = plan2.PlanCode
+	sub2.Currency = c.Currency
+	sub2.AttachExistingAccount(acc4)
+	if err := sub2.Create(); err != nil {
+		t.Fatalf("Subscription failed to be created with account:%s error:%s", acc4.AccountCode,err)
+	}
+
+	sub3 := r.NewSubscription()
+	sub3.PlanCode = plan4.PlanCode
+	sub3.Currency = c.Currency
+	sub3.AttachExistingAccount(acc4)
+	if err := sub3.Create(); err != nil {
+		t.Fatalf("Subscription failed to be created with account:%s error:%s", acc4.AccountCode,err)
+	}
+	
+	//create a sub w/ addons
+	sub5 := r.NewSubscription()
+	sub5.PlanCode = plan3.PlanCode
+	sub5.Currency = c.Currency
+	sub5.AttachExistingAccount(acc5)
+	addons := EmbedPlanAddOn{Quantity:1,AddOnCode:addon3.AddOnCode}
+	sub5.SubscriptionAddOns.UpdateAddOns(addons)
+	if err := sub5.Create(); err != nil {
+		t.Fatalf("Subscription failed to be created with addons account:%s err:", acc5.AccountCode,err)
+	}
+	//update a sub
+	sub3.Quantity = "2"
+	if err := sub3.Update(true);err!=nil{
+		t.Fatalf("Subscription failed to be updates :%s", sub3.UUID)
+	} else {
+		//verify quantity update
+		if sub3.Quantity != "2" {
+			t.Fatalf("Subscription failed to be updates :%s qty not = 2", sub3.UUID)
+		}
+	}
+	//update a sub w/addons
+	addons.Quantity = 4
+	sub5.SubscriptionAddOns.UpdateAddOns(addons)
+	if err := sub5.Update(true);err!=nil{
+		t.Fatalf("Subscription w/ addons failed to be updates :%s err:%s\n%v", sub5.UUID,err,sub5.SubscriptionAddOns)
+	} else {
+		//verify quantity update
+		if e, compareaddon := sub5.SubscriptionAddOns.GetAddOn(addon3.AddOnCode); e != nil {
+			t.Fatalf("Subscription w/ addons failed to be updated :%s error:%s", sub5.UUID,err)
+		} else {
+			if compareaddon.Quantity != 4 {
+				t.Fatalf("Subscription w/ addons failed to be updates :%s qty not = 4", sub5.UUID)
+			}
+		}
+	}
+	//cancel a sub
+	if err := sub1.Cancel(); err != nil {
+		t.Fatalf("Subscription failed to be update :%si error:%s", sub1.UUID,err)
+	} else {
+		if sub1.State != "canceled" {
+			t.Fatalf("Subscription failed to be cancelled :%s", sub1.UUID)
+		}
+	}
+	//reactivate a sub
+	if err := sub1.Reactivate(); err != nil {
+		t.Fatalf("Subscription failed to be reactivated :%s error:%s", sub1.UUID,err)
+	} else {
+		if sub1.State != "active" {
+			t.Fatalf("Subscription failed to be reactivated :%s", sub1.UUID)
+		}
+	}
+	//terminate a sub
+	if err := sub1.Terminate(); err != nil {
+		t.Fatalf("Subscription failed to be terminated :%s error:%s", sub1.UUID,err)
+	} else {
+		if sub1.State != "expired" {
+			t.Fatalf("Subscription failed to be terminated :%s", sub1.UUID)
+		}
+	}
+	//postpone a sub
+	threedaysfromnow := time.Now().AddDate(0,0,3)
+	if err:= sub3.Postpone(threedaysfromnow); err != nil {
+		t.Fatalf("Subscription failed to be postponed :%s error:%s", sub3.UUID,err)
+	}
+	//END SUSCRIPTION TESTING
+
+	//SUBSCRIPTION LISTING TESTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if subscriptions, err := r.GetSubscriptions(v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = subscriptions.Next() {
+		}
+		//page backwards
+		if !subscriptions.Prev() {
+			t.Fatalf("Prev didn't work for subscriptions")
+		}
+		//page start
+		if !subscriptions.Start() {
+			t.Fatalf("Prev didn't work for subscriptions")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END SUBSCRIPTION LISTING
+
+	//ACCOUNT SUBSCRIPTION LISTING TESTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if subscriptions, err := r.GetAccountSubscriptions(acc4.AccountCode,v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = subscriptions.Next() {
+		}
+		//page backwards
+		if !subscriptions.Prev() {
+			t.Fatalf("Prev didn't work for account subscriptions")
+		}
+		//page start
+		if !subscriptions.Start() {
+			t.Fatalf("Prev didn't work for account subscriptions")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END ACCOUNT SUBSCRIPTION LISTING TESTING
+
+	//TRANSACTION TESTING
+	//create 5 transactions
+	trans1 := r.NewTransaction()
+	trans1.AttachExistingAccount(acc4)
+	trans1.AmountInCents = 500
+	trans1.Currency = c.Currency
+	if err := trans1.Create(); err != nil {
+		t.Fatalf("Transaction failed to be created account:%s err:", acc4.AccountCode,err)
+	}
+
+	trans2 := r.NewTransaction()
+	trans2.AttachExistingAccount(acc4)
+	trans2.AmountInCents = 500
+	trans2.Currency = c.Currency
+	if err := trans2.Create(); err != nil {
+		t.Fatalf("Transaction failed to be created account:%s err:", acc4.AccountCode,err)
+	}
+
+	trans3 := r.NewTransaction()
+	trans3.AttachExistingAccount(acc4)
+	trans3.AmountInCents = 500
+	trans3.Currency = c.Currency
+	if err := trans3.Create(); err != nil {
+		t.Fatalf("Transaction failed to be created account:%s err:", acc4.AccountCode,err)
+	}
+
+	trans4 := r.NewTransaction()
+	trans4.AttachExistingAccount(acc4)
+	trans4.AmountInCents = 500
+	trans4.Currency = c.Currency
+	if err := trans4.Create(); err != nil {
+		t.Fatalf("Transaction failed to be created account:%s err:", acc4.AccountCode,err)
+	}
+
+	trans5 := r.NewTransaction()
+	trans5.AttachExistingAccount(acc4)
+	trans5.AmountInCents = 500
+	trans5.Currency = c.Currency
+	if err := trans5.Create(); err != nil {
+		t.Fatalf("Transaction failed to be created account:%s err:", acc4.AccountCode,err)
+	}
+
+	//full refund a transaction
+	if err:= trans5.RefundAll(); err != nil {
+		t.Fatalf("Transaction failed to be refunded uuid:%s err:", trans5.UUID,err)
+	}
+	//partial refund a transaction
+	if err:= trans4.Refund(250); err != nil {
+		t.Fatalf("Transaction failed to be partially refunded uuid:%s err:", trans4.UUID,err)
+	}
+	//END TRNSACTION TESTING
+
+	//TRANSACTION LISTING TESTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if transactions, err := r.GetTransactions(v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = transactions.Next() {
+		}
+		//page backwards
+		if !transactions.Prev() {
+			t.Fatalf("Prev didn't work for transactions")
+		}
+		//page start
+		if !transactions.Start() {
+			t.Fatalf("Prev didn't work for transactions")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END TRANSACTION LISTING TESTING
+
+	//ACCOUNT TRANSACTION LISTING
+	v = url.Values{}
+	v.Set("per_page","1")
+	if transactions, err := r.GetAccountTransactions(acc4.AccountCode,v); err == nil {
+		//page through
+		for bcontinue := true; bcontinue; bcontinue = transactions.Next() {
+		}
+		//page backwards
+		if !transactions.Prev() {
+			t.Fatalf("Prev didn't work for account transactions")
+		}
+		//page start
+		if !transactions.Start() {
+			t.Fatalf("Prev didn't work for account transactions")
+		}
+	} else {
+		t.Fatal(err.Error())
+	}
+	//END ACCOUNT TRANSACTION LISTING
 }

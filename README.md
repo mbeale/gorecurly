@@ -58,6 +58,8 @@ Also, the live testing function is a great place for finding examples on using t
 There are some issues with live testing.  If you already have a lot of test data in your sandbox account, the tests could time out.  I would suggest only testing 
 after you have cleared out the test data and never test against a production account, only sandbox.  There is use of random numbers for some object creation, there could be conflicts even though I have never ran into any.
 
+There is a config.xml which you need to alter to suit your account to complete live testing.
+
 TODO
 ====
 
@@ -65,9 +67,6 @@ TODO
 * Recurly.js signing
 * transparent post (probably not)
 * Option to add no auth to header "Recurly-Skip-Authorization: true"
-* Maybe some examples fetching with goroutines
-* Add a variable to test if subscription is in trial
-* Custom function to calculate account balance
 * Discount in cents for coupons not working
 
 Recurly.com
